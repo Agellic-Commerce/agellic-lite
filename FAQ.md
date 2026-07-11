@@ -80,7 +80,6 @@ tokens refill.
 ### Is Agellic Lite really free?
 
 Yes. Agellic Lite is a free, public edition of the Agellic MCP server.
-There's no Agellic account, no signup, and no Agellic licence to buy.
 You bring your own Keepa API key and pay only Keepa, on whatever
 Keepa subscription you already have. The base Keepa tier (1 TPM) is
 enough to get started; larger token allowances just drain the queue

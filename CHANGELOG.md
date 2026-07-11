@@ -8,8 +8,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 ## [1.5.0] - 2026-07-04
 
 First public release of Agellic Lite, the free edition of the Agellic MCP
-server. Bring your own Keepa API key: no Agellic account, no license token, no
-signup. It shares its version line with the full Agellic server.
+server. Bring your own Keepa API key and you're ready to go. It shares its
+version line with the full Agellic server.
 
 ### Added
 

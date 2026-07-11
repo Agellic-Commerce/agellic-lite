@@ -12,7 +12,7 @@ For example prompts once installed, see [USAGE.md](./USAGE.md).
 
 - **A Keepa API key**: get one at [keepa.com/#!api](https://keepa.com/#!api).
   A base Keepa subscription is enough. This is the only credential Agellic
-  Lite needs; there is no Agellic license token and no Agellic account.
+  Lite needs.
 - **Node.js 22.22.2+ (LTS) or 24.15.0+** (Claude Code only; Claude Desktop
   ships its own Node runtime). Node 20 reached end of life on 2026-04-30 and
   is no longer supported. If you're on older Node, install a current LTS from

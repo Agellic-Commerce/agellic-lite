@@ -3,7 +3,7 @@
 **Ask in plain English, get a decision, not a spreadsheet.** Calibrated
 demand estimates, Buy Box and stock signals, price and rank history, and
 natural-language product discovery, powered by your own
-[Keepa](https://keepa.com/) key. Free, and no Agellic account needed.
+[Keepa](https://keepa.com/) key. Free.
 
 Agellic Lite is a local [Model Context Protocol](https://modelcontextprotocol.io)
 (MCP) server, so it runs in any MCP-compatible assistant. Today it ships
@@ -11,9 +11,8 @@ with one-click installers for **Claude Desktop** and **Claude Code**, with
 more hosts as the MCP ecosystem grows.
 
 > Agellic Lite is the free edition. Bring your own Keepa API key and you are
-> ready to go: no license token, no signup, no Agellic account. If you want
-> bulk screening and cross-marketplace arbitrage, those live in the full
-> Agellic server (invite-only).
+> ready to go. If you want bulk screening and cross-marketplace arbitrage,
+> those live in the full Agellic server (invite-only).
 
 ## Why Agellic Lite
 
@@ -85,8 +84,7 @@ tool recognises the extension.
 - **Node.js 22.22.2+ or 24.15.0+** (Claude Code only; Claude Desktop ships its
   own Node runtime).
 
-No Agellic license token. No Agellic account. You only ever pay Keepa, on your
-own Keepa subscription.
+You only ever pay Keepa, on your own Keepa subscription.
 
 ## Documentation
 

@@ -8,7 +8,7 @@ reserved.
 Agellic Lite is distributed **free of charge**. The terms below replace any
 open-source license you may expect to find here: `agellic-lite` is not open
 source. It is the free edition of the Agellic MCP server; you supply your own
-Keepa API key and there is no Agellic account or license token.
+Keepa API key.
 
 ## 1. License grant
 
