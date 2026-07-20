@@ -49,6 +49,26 @@ After you `unzip agellic-lite.zip` and run `node install.mjs`:
    completes with all 8 tools available, or it fails with a specific
    error you can act on.
 
+### Codex CLI + ChatGPT desktop
+
+After you `unzip agellic-lite.zip` and run
+`node install.mjs --host codex`:
+
+1. Same prompts and credential probe as the Claude Code install above.
+   If another host already configured this machine, add
+   `--non-interactive` and the install is promptless (your key comes
+   from the shared cache).
+2. The installer registers a credential-free `agellic-lite` entry
+   through the `codex` CLI. Codex CLI and the ChatGPT desktop app share
+   that configuration, so the one command covers both.
+3. Codex hosts only re-read MCP configuration on restart: quit and
+   reopen the ChatGPT desktop app, and start a fresh Codex CLI session.
+   `codex mcp list` should then show `agellic-lite` as enabled.
+4. There is no placeholder mode on Codex hosts either: the install
+   completes with your key probed, or it fails with a specific error.
+   If the `codex` CLI itself is missing, see
+   [error #9](#9-codex-codex-cli-not-found).
+
 ## 2. Log locations
 
 There are two logs worth knowing about. Claude Desktop writes its own
@@ -236,13 +256,46 @@ reporting `pending` or `running` and the result never lands.
   the queue position, the funding gate, and an ETA so you can see it's
   progressing.
 - **The host isn't running.** The job runner lives inside the MCP server
-  process, which only runs while Claude Desktop or Claude Code is open.
-  Quit Claude or let the machine sleep/shut down and the queue stops
-  making progress: there is no cloud worker.
+  process, which only runs while a connected host (Claude Desktop,
+  Claude Code, Codex CLI, or ChatGPT desktop) is open. Quit the host or
+  let the machine sleep/shut down and the queue stops making progress:
+  there is no cloud worker.
 
-**Remedy:** Leave a Claude app open and the machine awake; the job drains
-on its own as tokens refill. If you did quit, nothing is lost: the job's
-lease is reclaimed on the next launch and it resumes where it left off.
-Poll with `check_job_status`. To abandon a job you no longer want, ask
-Claude to cancel it via `check_job_status`, which exposes a cancel
-action.
+**Remedy:** Leave a connected app open and the machine awake; the job
+drains on its own as tokens refill. If you did quit, nothing is lost:
+the job's lease is reclaimed on the next launch and it resumes where it
+left off. Poll with `check_job_status`. To abandon a job you no longer
+want, ask the assistant to cancel it via `check_job_status`, which
+exposes a cancel action.
+
+### 9. Codex: `codex` CLI not found
+
+**Symptom:** `node install.mjs --host codex` reports that the `codex`
+CLI is missing and exits with code 2.
+
+**Cause:** Registration goes through `codex mcp add`, which needs the
+`codex` command on PATH. The installer has still installed the server
+tree and written the credential cache; only the registration step is
+pending.
+
+**Remedy:** Either install the Codex CLI (see OpenAI's install
+instructions) and re-run `node install.mjs --host codex` (registration
+is idempotent, so re-running is always safe), or register manually in
+ChatGPT desktop: **Settings**, then **MCP servers**, then **Add
+server**. Choose **STDIO**, set the command to `node` with the
+`server.js` path the installer printed as its only argument, then
+restart the app.
+
+### 10. Codex: tools don't appear in ChatGPT desktop or Codex CLI
+
+**Symptom:** The install completed, but the assistant doesn't have the
+Agellic Lite tools.
+
+**Cause:** Codex hosts only re-read MCP configuration on restart.
+
+**Remedy:** Quit the ChatGPT desktop app fully and reopen it, and start
+a fresh Codex CLI session. `codex mcp list` should show `agellic-lite`
+as enabled. If it's listed but tools still don't appear, check Agellic
+Lite's own log (see [Log locations](#2-log-locations)): a healthy boot
+writes a `boot` and a `token-probe` event within a few seconds of the
+host starting.

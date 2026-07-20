@@ -119,16 +119,22 @@ to the Agellic Lite process.
 
 ## Compatibility
 
-### Which Claude clients does this work in?
+### Which clients does this work in?
 
 - **Claude Desktop** (macOS, Windows): install via the `agellic-lite.mcpb`
   extension. Drag the file into Settings → Extensions.
 - **Claude Code** (macOS, Linux, Windows): install via
   `node install.mjs` after unzipping `agellic-lite.zip`.
+- **Codex CLI + ChatGPT desktop** (macOS, Linux, Windows): install via
+  `node install.mjs --host codex` after unzipping the same archive.
+  One command registers both; they share MCP configuration.
 
-Linux desktop is not supported because Claude Desktop itself doesn't
-ship a Linux build. If/when that changes, the existing `.mcpb` will
-work there too.
+Agellic Lite is a standard local MCP server, so other MCP-capable hosts
+can run it too; the hosts above are the supported install paths.
+
+Linux desktop is not supported for Claude Desktop because CD itself
+doesn't ship a Linux build. If/when that changes, the existing `.mcpb`
+will work there too.
 
 ### Cowork limitations?
 

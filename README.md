@@ -7,8 +7,9 @@ natural-language product discovery, powered by your own
 
 Agellic Lite is a local [Model Context Protocol](https://modelcontextprotocol.io)
 (MCP) server, so it runs in any MCP-compatible assistant. Today it ships
-with one-click installers for **Claude Desktop** and **Claude Code**, with
-more hosts as the MCP ecosystem grows.
+with one-click installers for **Claude Desktop**, **Claude Code**, and
+**Codex** (Codex CLI + the ChatGPT desktop app), with more hosts as the MCP
+ecosystem grows.
 
 > Agellic Lite is the free edition. Bring your own Keepa API key and you are
 > ready to go. If you want bulk screening and cross-marketplace arbitrage,
@@ -57,9 +58,10 @@ question.
 window (cheaper, faster, sharper answers), plus price and BSR charts the model
 can actually see and read.
 
-**One paste, set up once.** Runs in Claude Desktop and Claude Code today.
-Configure once per machine (shared credentials), with category and demand
-calibration data bundled in, no extra downloads.
+**One paste, set up once.** Runs in Claude Desktop, Claude Code, and Codex
+(CLI + ChatGPT desktop) today. Configure once per machine (shared
+credentials), with category and demand calibration data bundled in, no extra
+downloads.
 
 ## Latest release
 
@@ -67,11 +69,12 @@ calibration data bundled in, no extra downloads.
 
 ## Which file do I download?
 
-| Host                             | File                | Recipe                                 |
-| -------------------------------- | ------------------- | -------------------------------------- |
-| Claude Desktop (macOS / Windows) | `agellic-lite.mcpb` | Drag into CD, Settings, Extensions     |
-| Claude Code (macOS / Linux)      | `agellic-lite.zip`  | `unzip` + `node install.mjs`           |
-| Claude Code (Windows)            | `agellic-lite.zip`  | `Expand-Archive` + `node install.mjs`  |
+| Host                             | File                | Recipe                                      |
+| -------------------------------- | ------------------- | ------------------------------------------- |
+| Claude Desktop (macOS / Windows) | `agellic-lite.mcpb` | Drag into CD, Settings, Extensions          |
+| Claude Code (macOS / Linux)      | `agellic-lite.zip`  | `unzip` + `node install.mjs`                |
+| Claude Code (Windows)            | `agellic-lite.zip`  | `Expand-Archive` + `node install.mjs`       |
+| Codex CLI / ChatGPT desktop      | `agellic-lite.zip`  | `unzip` + `node install.mjs --host codex`   |
 
 Both files are **byte-identical**; just two filenames so each host's unzip
 tool recognises the extension.
@@ -81,15 +84,17 @@ tool recognises the extension.
 - **Keepa API key**: get one at [keepa.com/#!api](https://keepa.com/#!api). A
   base Keepa subscription is enough. This is the only credential Agellic Lite
   needs.
-- **Node.js 22.22.2+ or 24.15.0+** (Claude Code only; Claude Desktop ships its
-  own Node runtime).
+- **Node.js 22.22.2+ or 24.15.0+** (Claude Code and Codex installs; Claude
+  Desktop ships its own Node runtime).
+- **Codex path only**: the `codex` CLI on PATH (the installer prints manual
+  ChatGPT desktop steps if it's missing).
 
 You only ever pay Keepa, on your own Keepa subscription.
 
 ## Documentation
 
 - [**Install guide**](./INSTALL.md): requirements, step-by-step for Claude
-  Desktop and Claude Code, plus upgrade and uninstall.
+  Desktop, Claude Code, and Codex, plus upgrade and uninstall.
 - [**Tool reference**](./TOOLS.md): the 8 tools, what each one does, and what
   it costs in Keepa tokens.
 - [**Tokens and the queue**](./TOKENS-AND-QUEUE.md): how the token budget, the
