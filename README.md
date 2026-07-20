@@ -110,7 +110,7 @@ You only ever pay Keepa, on your own Keepa subscription.
 
 ## Release status
 
-This is the **v1.5.0 release** of Agellic Lite, a free edition distributed
+This is the **v1.6.0 release** of Agellic Lite, a free edition distributed
 openly. Today's artifacts are unsigned builds; the trust stack (Sigstore and
 cosign supply-chain attestation, signed checksums, and an SBOM) is on the
 roadmap. Until then, install only from `Agellic-Commerce/agellic-lite` and

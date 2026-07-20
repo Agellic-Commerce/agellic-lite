@@ -1,7 +1,7 @@
 # Troubleshooting
 
 First-install behavior, log locations, and the handful of things most
-likely to go sideways on your first run of Agellic Lite v1.5.0.
+likely to go sideways on your first run of Agellic Lite v1.6.0.
 
 ## 1. First-install behavior: what to expect
 

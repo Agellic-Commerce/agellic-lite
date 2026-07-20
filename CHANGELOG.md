@@ -5,6 +5,41 @@ All notable changes to Agellic Lite are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2026-07-20
+
+Agellic Lite now installs into Codex CLI and the ChatGPT desktop app
+alongside Claude Desktop and Claude Code: one command registers both Codex
+surfaces, your Keepa key never enters Codex configuration, and every host on
+the machine shares one credential cache, one data dir, and one job queue.
+
+### Added
+
+- **Codex CLI + ChatGPT desktop as installable hosts.** `node install.mjs
+  --host codex` installs a Codex-owned copy of the server, probes it with a
+  real MCP round-trip before touching any configuration, and registers it
+  through the `codex` CLI. Codex CLI and ChatGPT desktop share MCP
+  configuration, so the one command covers both. See
+  [INSTALL.md](./INSTALL.md) for the walkthrough.
+- **Credential-free Codex configuration.** Your Keepa key is written only to
+  the per-machine credential cache; the `agellic-lite` Codex entry itself
+  carries no secrets, and the server reads the cache at boot.
+- **Promptless second-host install.** If any host already configured Agellic
+  Lite on this machine, `node install.mjs --host codex --non-interactive`
+  completes with no prompts, entirely off the shared cache.
+- **One-command upgrades across hosts.** `node install.mjs --host all
+  --upgrade` detects which scripted hosts are installed (Claude Code, Codex)
+  and upgrades each in turn with a per-host report.
+- **Per-host uninstall with a safe purge order.** Every uninstall level
+  (config only, config + binary, full purge) now works per host, and the
+  full purge refuses while another host is still installed, naming it, so
+  you can't corrupt a live host's shared data. INSTALL.md documents the
+  order that always works without `--force`.
+- **A graceful path when the `codex` CLI is missing.** The installer still
+  installs and probes the server and writes the credential cache, then
+  prints two remedies: install the CLI and re-run (always safe, the
+  registration is idempotent), or add the server manually in ChatGPT
+  desktop settings.
+
 ## [1.5.0] - 2026-07-04
 
 First public release of Agellic Lite, the free edition of the Agellic MCP

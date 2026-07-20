@@ -1,7 +1,7 @@
 # Tool Reference
 
 This document is the practitioner reference for the 8 MCP tools exposed by
-Agellic Lite v1.5.0, the free, bring-your-own-Keepa-key edition of the
+Agellic Lite v1.6.0, the free, bring-your-own-Keepa-key edition of the
 Agellic MCP server. Each section covers what the tool does, what it costs
 in Keepa tokens, what inputs it accepts, what it returns, and the operating
 rules worth knowing before you turn it loose on a candidate set. All Keepa
