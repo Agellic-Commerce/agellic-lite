@@ -44,10 +44,12 @@ one machine without touching each other.
 
 1. Download `agellic-lite.mcpb` from the
    [latest release](https://github.com/Agellic-Commerce/agellic-lite/releases/latest).
-2. Open Claude Desktop, then **Settings**, then **Extensions**, and install
-   the `.mcpb` one of two ways:
-   - **Drag and drop** the `.mcpb` file into the drop target; or
-   - If your build doesn't show a drop target, click **Advanced settings**,
+2. Install the `.mcpb` one of three ways:
+   - **Double-click** the downloaded `.mcpb`: Claude Desktop opens and
+     prompts you to install the extension; or
+   - open Claude Desktop, then **Settings**, then **Extensions**, and
+     **drag and drop** the `.mcpb` file into the drop target; or
+   - if your build doesn't show a drop target, click **Advanced settings**,
      then **Install extension**, and select the downloaded `.mcpb`.
 3. Paste your **Keepa API key** into the credential form. Leave **Tokens per
    minute** blank to auto-detect your Keepa plan's rate on first use (base
@@ -251,10 +253,12 @@ same data dir.
 
 ### Claude Desktop
 
-Drag the new `agellic-lite.mcpb` into Settings, Extensions (or **Advanced
-settings**, **Install extension**, if there's no drop target). CD prompts for
-your Keepa key again on the first launch after upgrade: paste it, or leave
-blank to pick up from the credential cache.
+Double-click the new `agellic-lite.mcpb` (or drag it into Settings,
+Extensions, or **Advanced settings**, **Install extension**, if there's no
+drop target). CD prompts for your Keepa key again on the first launch after
+upgrade: paste it, or leave blank to pick up from the credential cache. The
+new file must carry a **newer version** than the installed extension:
+reinstalling the same version is silently skipped.
 
 ### Claude Code
 

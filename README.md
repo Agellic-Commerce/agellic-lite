@@ -76,7 +76,7 @@ downloads.
 
 | Host                             | File                | Recipe                                      |
 | -------------------------------- | ------------------- | ------------------------------------------- |
-| Claude Desktop (macOS / Windows) | `agellic-lite.mcpb` | Drag into CD, Settings, Extensions          |
+| Claude Desktop (macOS / Windows) | `agellic-lite.mcpb` | Double-click (or drag into CD, Settings, Extensions) |
 | Claude Code (macOS / Linux)      | `agellic-lite.zip`  | `unzip` + `node install.mjs`                |
 | Claude Code (Windows)            | `agellic-lite.zip`  | `Expand-Archive` + `node install.mjs`       |
 | Codex CLI / ChatGPT desktop      | `agellic-lite.zip`  | `unzip` + `node install.mjs --host codex`   |
