@@ -5,6 +5,54 @@ All notable changes to Agellic Lite are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] - 2026-07-29
+
+This release answers a question Agellic Lite could not answer before, "what
+can I actually sell this for?", and rebuilds the seasonality detector so
+that a confirmed season means the peak genuinely recurred across years.
+
+### Added
+
+- **Sell-price read in `get_product_details`.** Every product now carries
+  `pricing.sellPrice`: observed sale-price bands (`moveFastCents` /
+  `marketCents` / `stretchCents`, the 25th / 50th / 75th percentiles of the
+  prices in force at inferred sale moments), the current price's position
+  inside them, sales skew, 30-day drift, and honest caveats. Three methods
+  ladder from transaction-quality on down: Buy Box prices at sale events,
+  the lowest-new floor at sale events when the Buy Box is suppressed, and
+  duration-weighted time-at-price when sale events are too thin; below
+  that, plain window averages. The bands describe the observed market,
+  never a pricing recommendation. See
+  [COMPUTED-INSIGHTS.md section 3](./COMPUTED-INSIGHTS.md#3-sell-price-read).
+- **`insights.recentDemandDeviation`.** The trailing-year average rank
+  divided by the trailing-30-day average: a one-number read on whether
+  demand is currently running above or below the product's own baseline.
+
+### Changed
+
+- **Seasonality detection rebuilt around recurrence.** A seasonal peak is
+  now `confirmed` only when the same peak window recurred across at least
+  two separate years of history AND beat a statistical null test that
+  rejects slow rank drift masquerading as seasonality. A single observed
+  season reports as `candidate` with explicit "do not act on this alone"
+  framing. Detection itself moved to a scale-free cluster split of the
+  weekly rank profile. Deliberately conservative; verified against two
+  blind holdout sets with zero false confirmations. See the rewritten
+  [COMPUTED-INSIGHTS.md section 2](./COMPUTED-INSIGHTS.md#2-seasonality).
+- **Three years of history for the deep read.** `get_product_details` now
+  fetches 1095 days of history (was 365), giving seasonality confirmation
+  up to three full cycles to work with; per-ASIN token cost is unchanged.
+  Seasonality computed from shorter windows (under 730 days) is explicitly
+  capped at `candidate` and its summary says why.
+- **Honest calendar labels.** A peak is labeled Q4 / Summer / Halloween
+  etc. only when it genuinely matches the calendar template: the overlap
+  bar tightened, plus a new containment path for a narrow peak sitting
+  inside a wide season window. Otherwise the label is `Other` and the peak
+  week range carries the identity.
+- **The product cache resets on this upgrade** (new cache format for the
+  three-year window): previously cached ASINs refetch at the normal token
+  cost on first read. Your Keepa key, token state, and logs are untouched.
+
 ## [1.6.0] - 2026-07-20
 
 Agellic Lite now installs into Codex CLI and the ChatGPT desktop app

@@ -1,9 +1,9 @@
 # Computed Insights Reference
 
 This document explains the algorithms behind every number
-`get_product_details` returns in its `demand`, `seasonality`, and `insights`
-blocks: what each metric measures, how it gets computed, what gates it has
-to pass, and how to read it as a reseller. It is a companion to `TOOLS.md`
+`get_product_details` returns in its `demand`, `seasonality`, `pricing`, and
+`insights` blocks: what each metric measures, how it gets computed, what
+gates it has to pass, and how to read it as a reseller. It is a companion to `TOOLS.md`
 (the practitioner reference for *what* each tool does); this doc covers
 *how* the deep-analysis tool turns raw Keepa time-series into the structured
 fields you see in the output.
@@ -16,17 +16,18 @@ Read this when:
 - You're designing prompts or downstream tooling that consumes specific
   fields.
 
-The algorithms live in six families, mapping to specific blocks of the
+The algorithms live in seven families, mapping to specific blocks of the
 `get_product_details` output:
 
 | Section | Output block | When it runs |
 |---------|--------------|--------------|
 | [1. Calibrated demand](#1-calibrated-demand) | `demand` | Every product with sufficient category data |
-| [2. Seasonality](#2-seasonality) | `seasonality` | Every product with ≥ 26 weeks of BSR history |
-| [3. Pattern detectors](#3-pattern-detectors) | `insights.{sawtooth, raceToBottom, sellerCliff}` | sellerCliff: always; sawtooth + raceToBottom: when offers data is present |
-| [4. Stability & trend](#4-stability--trend) | `insights.{demandStability, amazonOOS, priceTrend, priceVelocity, pricePosition, priceCompression, reviewPurge}` | Most always-on; `priceCompression` needs offers |
-| [5. Competition signals](#5-competition-signals) | `insights.{buyBoxVolatility, effectiveCompetition, fbaFbmConcentration, sellerConcentration, stockDepth}` | All require offers data |
-| [6. Composite risk signals](#6-composite-risk-signals) | `insights.{ipRisk, raceToBottomWarning}` | `ipRisk`: always; `raceToBottomWarning`: with offers data |
+| [2. Seasonality](#2-seasonality) | `seasonality` | Every product; detection needs ≥ 18 populated calendar weeks, confirmation needs 2+ recurring years |
+| [3. Sell-price read](#3-sell-price-read) | `pricing.sellPrice` | Every product with ≥ 4 weeks of listing history |
+| [4. Pattern detectors](#4-pattern-detectors) | `insights.{sawtooth, raceToBottom, sellerCliff}` | sellerCliff: always; sawtooth + raceToBottom: when offers data is present |
+| [5. Stability & trend](#5-stability--trend) | `insights.{demandStability, amazonOOS, priceTrend, priceVelocity, pricePosition, priceCompression, reviewPurge}` | Most always-on; `priceCompression` needs offers |
+| [6. Competition signals](#6-competition-signals) | `insights.{buyBoxVolatility, effectiveCompetition, fbaFbmConcentration, sellerConcentration, stockDepth}` | All require offers data |
+| [7. Composite risk signals](#7-composite-risk-signals) | `insights.{ipRisk, raceToBottomWarning}` | `ipRisk`: always; `raceToBottomWarning`: with offers data |
 
 **Source of truth.** Numeric constants in this doc are sampled from
 `src/core/demand/`, `src/core/product/seasonality/`, and
@@ -182,57 +183,72 @@ Every cross-domain output also carries `estimate from cross-marketplace baseline
 
 ## 2. Seasonality
 
-Replaces an older autocorrelation-based detector that almost never fired on real Keepa series (autocorrelation needed long, dense, gap-free histories and produced no actionable peak window when it did trigger). The replacement is a two-layer calendar-Z + template approach: Layer A bins weekly BSR into 52 calendar buckets and finds the run of weeks that systematically beats a robust off-peak baseline; Layer B labels that run against 14 known calendar patterns (Q4, Halloween, BackToSchool, etc.). A third step does phase math: given the detected peak window and today's date, when is the next peak, when should the reseller be buying, and when should they be exiting.
+Tells a reseller four things: whether the product has a *recurring* seasonal peak, how sure the detector is, where in the cycle we are right now, and concrete buy/exit dates anchored to the next peak.
 
-The output tells a reseller four things: whether the product is seasonal at all, what shape the season takes, where in the cycle we are right now, and concrete buy/exit dates anchored to the next peak.
+The detector was rebuilt in v1.7.0 around one principle: **a season is only ever `confirmed` when the same peak window actually recurred across at least two separate years of history**. Detection now runs on a cluster split of the weekly rank profile (see below); a single observed season reports as `candidate` with explicit do-not-act-alone framing; and a statistical null test rejects slow rank drift masquerading as seasonality. The output *shape* is unchanged from earlier releases; the meaning of the values is sharper and deliberately more conservative. Verified against two blind holdout sets with zero false confirmations.
 
 ### Output shape
 
 `seasonality: { detected, method, pattern, peak: {...}, yearsObserved, weeksAnalyzed, confidence, confirmationLevel, currentPhase, daysUntilNextPeakStart, sourcingWindow, leadOutByDay, summary }`
 
-- **`detected`**: `true` only when a peak window passes the baseline + ratio + cross-year-confirmation gates.
-- **`method`**: `'calendar-z'` when detected, `null` otherwise. (The `'autocorrelation'` value is retired and never emitted.)
-- **`pattern`**: `'spike'` (≤ 4-week peak), `'shoulder'` (5+ weeks), `'two-tail'` (peak wraps Dec→Jan), or `'evergreen'` (no peak after a full year of data).
-- **`peak.label`**: one of the 14 template names (see below) or `'Other'`. `null` when not detected.
+- **`confirmationLevel`**: `'none'` / `'candidate'` / `'confirmed'`. **Read this field first.** `confirmed` means the peak recurred across 2+ years and beat the drift null test; `candidate` means one recurring year (or a confirmation that failed the alignment test) and is explicitly not actionable alone.
+- **`detected`**: `true` only when a peak window passes the cluster-split gates AND recurs in at least one year. A pooled window that no single year reproduces (a one-off spike, a level shift) is not detected at all.
+- **`method`**: `'calendar-z'` when detected, `null` otherwise. The name is historical; detection is now the cluster split described below. (The `'autocorrelation'` value is retired and never emitted.)
+- **`pattern`**: `'spike'` (≤ 4-week peak), `'shoulder'` (5+ weeks), `'two-tail'` (peak wraps Dec→Jan), or `'evergreen'` (no peak after a full year of data). `null` under 52 weeks of data.
+- **`peak.label`**: one of 13 calendar template names (see Labels) or `'Other'`. `null` when not detected. The week window is the identity; the label is presentation only.
 - **`peak.startWeekOfYear` / `endWeekOfYear`**: 1–52, inclusive. If `end < start`, the peak wraps the year boundary.
-- **`peak.durationWeeks`**: counts wraparound correctly.
-- **`peak.peakToOffPeakRatio`**: peak-bucket median BSR ÷ off-peak baseline. < 1 means peak window has lower BSR (better demand); the gate rejects ≥ 0.85.
-- **`yearsObserved`**: distinct calendar years with ≥ 26 weeks of data.
+- **`peak.durationWeeks`**: the bridged span (a single noisy hole inside the peak counts toward the span).
+- **`peak.peakToOffPeakRatio`**: peak-cluster median BSR ÷ off-peak median. < 1 means the peak window has the better (lower) rank; detection requires ≤ 0.5 (at least a 2× separation).
+- **`yearsObserved`**: calendar years with ≥ 26 observed weeks. Partial years count neither here nor toward confirmation. This counts *observed* years, not recurring ones; the recurring-year count is internal.
 - **`weeksAnalyzed`**: non-null weekly observations.
-- **`confidence`**: `'low'` / `'moderate'` / `'high'`. See decision rule under Layer A.
-- **`confirmationLevel`**: `'none'` / `'candidate'` / `'confirmed'` based on YoY peak alignment.
+- **`confidence`**: `'low'` / `'moderate'` / `'high'`. See Confidence.
 - **`currentPhase`**: `'pre-peak'` / `'peak'` / `'post-peak'` / `'off-season'`, or `null` if not detected.
 - **`daysUntilNextPeakStart`**: integer days from today to the next peak's start. `null` if not detected.
 - **`sourcingWindow`**: `{ earliestByDay, latestByDay }` as ISO dates, or `null`.
 - **`leadOutByDay`**: ISO date to exit by, or `null`.
-- **`summary`**: one-line human-readable digest of the above.
+- **`summary`**: one-line digest; carries the confirmed/candidate framing verbatim (`CONFIRMED recurring season … Safe to plan sourcing around this window` vs. `CANDIDATE, unconfirmed … Do not act on this alone`).
 
-### Layer A: calendar-Z peak detection
+A related scalar lives beside the block: **`insights.recentDemandDeviation`**, the trailing-365-day average BSR divided by the trailing-30-day average. Above 1 means rank recently *improved* vs. the year (demand up, possibly in-season); below 1 means it worsened. Null without ≥ 26 observed weeks in the trailing year and ≥ 2 in the trailing month.
 
-**What it does.** Identifies the contiguous run of weeks-of-year where weekly BSR systematically beats a robust off-peak baseline, then confirms the run against per-year repeat.
+### Detection: the cluster split
 
-**Method.** Weekly BSR observations are bucketed into 52 calendar slots by week-of-year: for each (year, week) the per-year median is taken first (resists within-year outliers), then the cross-year median across years gives one number per week-of-year. An off-peak baseline is built by taking the global median of the 52 buckets, then keeping only buckets within ±0.5 robust-MAD of that median; the baseline `B` is the median of that filtered set and σ is `1.4826 × MAD` of the same set, floored at 1% of `B` and at 1 to keep Z-scores numerically meaningful. Per-week Z-scores are `(bucket − B) / σ`. A peak run is any contiguous span of weeks with `Z ≤ -Z_THRESHOLD`, with single one-week gaps bridged so noisy holes don't fragment a real peak. Runs are allowed to wrap from week 52 → week 1. The primary peak is the run with the lowest (most negative) mean Z. The same Z procedure is rerun per calendar year that has enough data; if at least 2 distinct years' per-year peaks align with the cross-year primary within ±2 weeks on both ends, the result is `confirmed`. A `peakToOffPeakRatio` gate then rejects "peaks" that are only 15% better than baseline as noise.
+**What it does.** Finds the calendar weeks whose rank profile is separably better than the rest of the year.
 
-**Constants.**
-- **`Z_THRESHOLD = 1.0`**: a week qualifies as "peak" when its Z-score is ≤ -1.0 (lower BSR = better demand).
-- **`HIGH_CONFIDENCE_Z = -1.5`**: primary peak's mean Z must be below this for `high` confidence.
-- **`MIN_DETECTION_RATIO = 0.85`**: peak-median ÷ baseline must be ≤ 0.85 (peak ≥ 15% better than baseline) or the candidate is rejected as noise.
-- **`MAX_PEAK_DURATION = 26`**: runs longer than half a year are rejected (likely a generally well-ranked product, not a season). Sized to still accommodate ColdFlu (wk 40 → wk 12, 25 weeks).
-- **`MIN_PEAK_DURATION = 2`**: single-week spikes are rejected (PrimeDay templates handle the legitimate single-week case separately).
-- **`MAX_GAP_WEEKS = 1`**: a lone false sandwiched between two trues is bridged so a real peak isn't split by one noisy week.
-- **`MIN_BUCKETS_FOR_BASELINE = 26`**: fewer than 26 of 52 calendar weeks populated → no baseline computed, no detection.
-- **`MIN_WEEKS_PER_YEAR_FOR_CONFIRMATION = 26`**: a calendar year contributes to YoY confirmation only with ≥ 26 weeks of data.
-- **`ALIGNMENT_TOLERANCE_WEEKS = 2`**: a per-year peak counts as aligned with the primary when both start and end are within ±2 weeks (circular distance).
+**Method.** Weekly BSR observations are bucketed into 52 calendar slots by week-of-year: for each (year, week) the per-year median is taken first (resists within-year outliers), then the median across years gives one number per week-of-year. The 52 bucket medians then move to log space, where BSR's multiplicative noise becomes additive and the analysis is scale-free, and an Otsu-style two-cluster split finds the partition that maximizes between-cluster separation: the better-rank cluster is the peak candidate, the worse-rank cluster is the off-peak baseline. Three gates must all pass:
 
-**Confirmation levels.** `none`: no calendar year produced its own peak. `candidate`: at least one year produced a peak, but fewer than 2 of them aligned with the cross-year primary. `confirmed`: 2+ distinct years' peaks aligned within ±2 weeks. `detected` flips to `true` only when `confirmationLevel` is `candidate` or `confirmed`. Confidence then resolves to `high` when `yearsObserved ≥ 3` AND primary mean Z is below -1.5 AND confirmed; `moderate` for confirmed with weaker numbers; `low` for `candidate` or `none`.
+- **Separation ≥ 2.0×**: the off-peak median rank must be at least twice the peak median. A peak only marginally better than baseline is noise.
+- **Off-peak ≥ 16 weeks**: a product "elevated all year" has no off-season and is not seasonal.
+- **Contiguity ≥ 60%**: the peak cluster's largest contiguous calendar run (single-week gaps bridged, wraparound across the year boundary allowed) must cover at least 60% of the cluster. Scattered noise weeks that happen to separate well are rejected.
 
-**Caveats.** Requires `seriesStartMs` ≥ 2000-01-01: bad/missing series origin returns the not-detected fallback rather than scoring against year 1970. Needs ≥ 26 populated calendar buckets to compute a baseline at all. The baseline routine has an inversion guard: if the global median is sitting inside the peak cluster (peak-saturated products), it refuses to compute. Pattern classification needs ≥ 52 weeks of data; with sparse data a real peak run still bails to not-detected rather than emit a labeled peak with `pattern: null`.
+The peak's cluster-week coverage must land in **[2, 32] weeks** (the previous 26-week ceiling was raised after it rejected a genuine 28-week season); the emitted `durationWeeks` is the bridged span. Z-scores against the off-peak baseline survive purely as a *strength* metric: they pick the primary run when several qualify and feed confidence, but no longer trigger detection.
 
-### Layer B: 14 pattern templates
+**Caveats.** Needs ≥ 18 populated calendar buckets to attempt a split. Requires a sane series origin (≥ 2000-01-01); a corrupt origin returns not-detected rather than scoring against year 1970. Pattern classification needs ≥ 52 weeks of data; with sparse data a real peak run still bails to not-detected rather than emit a labeled peak with `pattern: null`.
 
-**What it does.** Labels the detected peak window against known calendar windows so the reseller sees "Q4" or "Halloween" instead of "weeks 44–52."
+### Confirmation: the recurrence gate
 
-**Templates.** All 14:
+Detection says "this profile has a peak shape". Confirmation asks the question that matters before sourcing money: **did it happen again?**
+
+Every calendar year with ≥ 26 observed weeks gets its own independent cluster split and its own peak window against its own baseline. A year counts as *recurring* when its peak overlaps the cross-year primary window (circular Jaccard ≥ 0.5) with its own separation ≥ 1.7× (deliberately looser than the 2.0× pooled bar, since single-year buckets carry full noise). The overlap is computed truncation-aware: the primary window is first restricted to the weeks that year actually observed, which is what lets the current partial year still qualify on the weeks it has seen, provided it observed at least 40% of the primary window.
+
+- **0 recurring years** → not detected at all.
+- **1 recurring year** → `confirmationLevel: 'candidate'`, confidence `low`.
+- **2+ recurring years** → `'confirmed'`, subject to one final test.
+
+**The alignment null test.** A recurrence count alone can be reached by coincidence: slow mean-reverting rank drift with no calendar structure produced a false `confirmed` on 8–27% of simulated drift series. So every would-be `confirmed` result must also beat chance on *alignment*: the mean pairwise overlap of the per-year peak windows is compared against a null distribution built by circularly rotating each year's calendar (999 rotations; exhaustive at exactly 2 years). Only real alignment above the null's 95th percentile keeps `confirmed`; otherwise the result demotes to `candidate` / `low`. The test is demote-only (it can never create or upgrade a detection) and fully deterministic. With it in place, false confirms on drift series measure ≤ 2.5%.
+
+One wording caveat: a demoted result's summary reads "needs ≥ 2 recurring years" even though 2 years did recur and merely failed to align better than chance; the output does not distinguish the two candidate paths.
+
+### Confidence
+
+- **`high`**: 3+ recurring years AND pooled peak mean Z below -1.5. Both required; a weak-amplitude three-year recurrence stays `moderate`.
+- **`moderate`**: `confirmed` with fewer recurring years or weaker amplitude.
+- **`low`**: `candidate`, not-detected, and any null-test demotion. `high` is unreachable without `confirmed`.
+
+### Labels: the calendar templates
+
+**What it does.** Labels the detected peak window against known calendar windows so the reseller sees "Q4" or "Halloween" instead of "weeks 44–52." The label is pure presentation: the week window carries the identity, nothing downstream gates on the label, and the summary appends it only when it genuinely earned its match.
+
+**Templates.** 13 calendar labels (PrimeDay is modeled twice) plus the `Other` fallback:
 - **Q4** (wk 44–52): holiday season.
 - **Halloween** (wk 38–43): costumes, decor.
 - **BackToSchool** (wk 28–34): supplies, dorm goods.
@@ -248,9 +264,18 @@ The output tells a reseller four things: whether the product is seasonal at all,
 - **ColdFlu** (wk 40 → wk 12, two-tail-only): wraparound winter respiratory.
 - **Other**: fallback when nothing meets the Jaccard threshold.
 
-**Method.** Pattern shape is decided first: `evergreen` (≥ 52 weeks of data, no peak), `two-tail` (peak wraps year boundary, any duration), `spike` (≤ 4-week peak), or `shoulder` (5+ week non-wrapping peak). Label assignment then compares the detected peak window against each template via Jaccard overlap (intersection ÷ union of week-of-year sets, wraparound-aware). Templates with a `patternRequirement` gate (PrimeDay → `spike`, ColdFlu → `two-tail`) are skipped when the detected pattern doesn't match. The template with the highest Jaccard score ≥ 0.5 wins; ties go to the narrower template.
+**Method.** Pattern shape is decided first: `evergreen` (≥ 52 weeks of data, no peak), `two-tail` (peak wraps year boundary, any duration), `spike` (≤ 4-week peak), or `shoulder` (5+ week non-wrapping peak). Templates with a `patternRequirement` gate (PrimeDay → `spike`, ColdFlu → `two-tail`) are skipped when the detected pattern doesn't match. A template then earns the label through either of two paths:
 
-**Caveats.** Below 0.5 Jaccard, the label falls to `'Other'`, a real peak still detected, just not matching the calendar library. Templates are US-marketplace-shaped (BackToSchool, TaxSeason, PrimeDay dates assume the US calendar). Single events Amazon does not pre-announce a calendar week for (e.g. spontaneous Lightning Deals) cannot match. PrimeDay's two single-week templates pick whichever year-portion the detected peak overlaps better; the loser is not separately reported.
+- **Overlap**: circular Jaccard (intersection ÷ union of week-of-year sets, wraparound-aware) ≥ 0.7. Raised from 0.5, which produced wrong labels: at 0.5, BackToSchool could narrowly outscore Summer on a mid-summer product.
+- **Containment**: a narrow peak sitting properly *inside* a wide template, which plain Jaccard punishes for the width mismatch alone (a weeks-44–48 spike scores only 0.56 against Q4). Requires ≥ 80% of the peak inside the template AND the peak covering ≥ 30% of the template (so a one-week blip cannot claim a wide template), and is closed to `two-tail` peaks: the 25-week ColdFlu window would geometrically swallow almost any wrapping winter peak.
+
+The highest Jaccard wins; exact ties go to the narrower template. Below both bars the label is `'Other'` and the week numbers carry the identity alone.
+
+**Caveats.** Templates are US-marketplace-shaped (BackToSchool, TaxSeason, PrimeDay dates assume the US calendar). Single events Amazon does not pre-announce a calendar week for (e.g. spontaneous Lightning Deals) cannot match. PrimeDay's two single-week templates pick whichever year-portion the detected peak overlaps better; the loser is not separately reported. A label can legitimately change between releases or window widths when a borderline peak shifts by a week; the week window is the stable identity.
+
+### The history window
+
+The deep read (`get_product_details`) fetches roughly three years (1095 days) of history, giving confirmation up to three full cycles to work with; Agellic Lite uses the same three-year deep read as the full server. Lighter query surfaces fetch 365 days, and any seasonality computed from a window under 730 days **cannot reach `confirmed`**: two full cycles are impossible inside it, and a mid-year 365-day window could otherwise manufacture a false confirmation out of two half-cycles of the same season. Such results are capped at `candidate` / `low`, with the summary replaced by an explicit screening caveat pointing at the 3-year product read for confirmation.
 
 ### Phase math (currentPhase / sourcingWindow / leadOutByDay)
 
@@ -265,15 +290,171 @@ The output tells a reseller four things: whether the product is seasonal at all,
 - **`leadOutByDay: ISO | null`**, stop-replenishing date. Next-peak end − 4 weeks.
 
 **How to read it.**
-- `currentPhase: 'pre-peak'` + today between `earliestByDay` and `latestByDay` → buy now.
+- Read `confirmationLevel` first, always. `confirmed` at `moderate`/`high` → safe to plan sourcing around the window. `candidate` → interesting; verify against another year of data or external evidence before committing inventory. The detector is conservative by design: some real seasons will sit at `candidate` until enough recurring years accumulate, and that is the intended trade against sourcing on a false season.
+- `currentPhase: 'pre-peak'` + today between `earliestByDay` and `latestByDay` → buy now (if confirmed).
 - `currentPhase: 'peak'` + today past `leadOutByDay` → stop replenishing; sell through.
 - `currentPhase: 'off-season'` + `daysUntilNextPeakStart` > 60 → no urgency; revisit when pre-peak window opens.
 
-**Caveats.** Wraparound peaks (e.g. ColdFlu, wk 40 → wk 12) need special-case year arithmetic: the tail of a wrap-peak belongs to the previous year's start. Lead times are hardcoded (8/6/4 weeks); they aren't tuned per pattern. Air vs. ocean freight isn't a factor: the reseller is expected to back the dates out further if their lead time is longer than 8 weeks.
+**Caveats.** Wraparound peaks (e.g. ColdFlu, wk 40 → wk 12) need special-case year arithmetic: the tail of a wrap-peak belongs to the previous year's start. Lead times are hardcoded (8/6/4 weeks); they aren't tuned per pattern. Air vs. ocean freight isn't a factor: the reseller is expected to back the dates out further if their lead time is longer than 8 weeks. "Today" for phase purposes is the *data's* end, not the wall clock, so a stale fetch classifies the phase as of its last observation. The emitted ISO dates are week-granular approximations (a week is mapped to its first day), not exact calendar dates.
 
 ---
 
-## 3. Pattern detectors
+## 3. Sell-price read
+
+Answers the question the demand block deliberately does not: not "how many
+units move per month" but "what price do units actually move at". Every
+`get_product_details` product with at least 4 weeks of listing history
+carries `pricing.sellPrice`: sale-price bands built from the prices that
+were in force at inferred sale moments. The bands are the *observed*
+distribution of the market's behavior, never a pricing recommendation.
+`moveFastCents` is not "the price to move fast at"; it is the 25th
+percentile of what was actually observed.
+
+The block is a discriminated union on `mode` with three members:
+
+- **`read`**: a real price distribution exists; bands plus the current
+  price's position inside them.
+- **`averages`**: history too thin for a distribution; plain 30/90/180-day
+  window averages, confidence pinned `low`.
+- **`no-read`**: nothing usable; a `reason` says why (`no-price-history`,
+  `suppressed-no-fallback`, or `no-usable-window`).
+
+The field can also be `null` (the engine failed; the rest of the product
+output survives) or absent entirely (listing under 4 weeks old, or a cached
+result predating the feature).
+
+### How a sale is inferred
+
+There is no transaction feed on Amazon, so the engine uses the same proxy
+Keepa does: a sales-rank improvement. A rank drop counts as a sale event
+when the rank improves by at least `max(50, 2% of the prior rank)`. The two
+arms combine with `max`, never or: an or-gate would admit deep-rank jitter
+through whichever branch is looser (a 50-place wobble at rank 200,000
+passes the absolute arm; a 4,000-place one passes the relative arm). Drop
+detection resets across data gaps and out-of-stock spans, so a "drop"
+spanning a gap emits nothing.
+
+Each event is then matched to the price *strictly preceding* it: at an
+exact same-minute collision between a rank drop and a price change, the
+price that was in force before the change is the one the sale happened at.
+Events with no concurrent price are left unmatched rather than matched to a
+stale earlier price; the unmatched share is tracked and caveated.
+
+### The method ladder
+
+Inside `read` mode there are three methods, tried strictly in order; the
+`method` field reports which one produced the bands.
+
+1. **`sales-weighted`** (buy-box basis, 90-day window, then 180): the price
+   in force at each of ≥ 8 matched sale events forms a transaction-price
+   distribution. Needs the buy box visible for ≥ 50% of the window.
+2. **`floor-at-sale`** (lowest-new basis, 90 then 180 days): fires only
+   when buy-box coverage is under 50% (suppressed buy box). Same ≥ 8-event
+   requirement. Its bands are the market *floor* at sale moments, not
+   transaction prices, and confidence is always `low`.
+3. **`time-at-price`** (90 days only): no usable events at all; bands are
+   duration-weighted percentiles of where the price *sat*, buy-box
+   preferred, lowest-new fallback. Needs ≥ 30 days of non-null coverage.
+
+If no method fires, `averages` mode reports plain window means over a
+single basis lane (buy-box if it has any coverage, else lowest-new, never
+mixed), and `no-read` is the floor below that.
+
+Band percentiles use a weighted quantile with *no interpolation*: each band
+is the smallest observed value whose cumulative weight reaches the target
+percentile, so the output can never report a price that never occurred.
+
+### Output shape (`read` mode)
+
+`{ mode: 'read', method, confidence, windowDays, priceBasis, moveFastCents, marketCents, stretchCents, currentPriceCents, currentPercentile, currentPosition, eventCount, keepaDropCount, floorDistancePercent, atFloor, salesSkew, driftDirection, driftPercent, hero, caveats }`
+
+- **`moveFastCents` / `marketCents` / `stretchCents`**: p25 / median / p75
+  of the observed distribution, in the marketplace's smallest currency
+  unit.
+- **`priceBasis`**: `buy-box` or `lowest-new`. Every price field in the
+  block derives from this one series; an item-only buy-box current is never
+  compared against shipping-inclusive lowest-new bands. When the selected
+  basis has no live current value, all five current-relative fields
+  (`currentPriceCents`, `currentPercentile`, `currentPosition`,
+  `floorDistancePercent`, `atFloor`) go null together; the historical bands
+  still stand.
+- **`currentPosition`**: `below-move-fast` / `move-fast-to-market` /
+  `market-to-stretch` / `above-stretch`.
+- **`eventCount` / `keepaDropCount`**: matched sale events vs. Keepa's own
+  drop count for the same window, juxtaposed so undercapture stays
+  visible. `eventCount` is null for `time-at-price` (no events involved).
+- **`atFloor` / `floorDistancePercent`**: whether the current price sits
+  within 5% of the basis's own 365-day minimum, and the signed distance
+  above it. The floor window is fixed at 365 days regardless of the read
+  window.
+- **`salesSkew`**: whether sale events cluster toward the lower or higher
+  end of the price range (`toward-lower-prices` / `balanced` /
+  `toward-higher-prices` / `unknown`). An observational association, not
+  elasticity: promos, stockouts, and competitor moves all confound it. It
+  is forced to `unknown` on seasonal products, where price and demand move
+  together for calendar reasons.
+- **`driftDirection` / `driftPercent`**: the 30-day median vs. the full
+  window median on the same basis (`softening` / `firming` / `stable`). A
+  recency signal, not independent confirmation.
+- **`hero`**: one-line digest, e.g. `sells $18.50–$24.99, market $21.49
+  (90d, 23 sale events)`.
+
+### Confidence
+
+`sales-weighted` at 90 days starts `high` with ≥ 15 matched events, else
+`medium`; a 180-day widening caps at `medium` with a caveat.
+`floor-at-sale` is always `low`. `time-at-price` is `medium` with ≥ 45
+coverage days, else `low`. Guards only ever ratchet confidence *down*:
+
+- Unmatched-event share over 30% caps at `medium`.
+- The Keepa-divergence envelope compares detected events against Keepa's
+  drop counter from both sides (the counter behaves differently at shallow
+  vs. deep rank): far more detected than Keepa caps at `low` (possible rank
+  jitter in the bands); far fewer caps at `medium` (events are a sparse
+  sample of real sales).
+- A rank series ending more than 14 days before the window end caps at
+  `medium` (the window tail has no sale-proxy coverage), as does product
+  data ending more than 14 days before extraction.
+
+### Caveats worth knowing
+
+- **Shipping convention**: Keepa's lowest-new series includes shipping only
+  from 2026-02-16 onward. A lowest-new read whose window reaches back
+  before that date is comparing prices measured two different ways, and
+  says so in a caveat (fully-before vs. straddling get distinct wording).
+- **Quartile collapse**: when all bands land on one value, the hero
+  reframes honestly: `sold at $X (N sale events)` when every matched price
+  was identical, or `sale prices clustered at $X` plus the real min–max
+  range when tails existed. `time-at-price` with a held price reads `held
+  $X for ~Nd of the last 90d`.
+- **Seasonal phase**: on seasonal products a caveat marks that the bands
+  reflect the current phase window (`pre-peak` / `peak` / `post-peak` /
+  `off-season`), not the full cycle. Race-to-bottom and sawtooth
+  detections also append framing caveats (a moving floor, or a bimodal
+  distribution whose market band may sit between the modes).
+- **`windowDays` labels the window, not the span**: on listings younger
+  than the window (e.g. a 45-day-old listing) `windowDays: 90` still reads
+  90. The bands are computed only from real data, no padding, but do not
+  read `windowDays` as "days of history" on a young listing.
+- Hero strings format prices with a `$` sign regardless of marketplace;
+  the `*Cents` fields are always the marketplace's own currency unit.
+
+### How to read it
+
+- `currentPosition: 'above-stretch'` + `salesSkew: 'toward-lower-prices'`
+  → the market sells below where this listing is priced; expect slow
+  movement at the current price.
+- `atFloor: true` + `driftDirection: 'softening'` → the price is already
+  at its yearly floor and still sinking; margin thesis needs re-checking.
+- `method: 'floor-at-sale'` → the buy box was suppressed; bands are the
+  visible floor at sale moments, so plan margins off something *above*
+  these numbers, not at them.
+- `mode: 'averages'` → do not treat the averages as bands; there was not
+  enough history for a distribution.
+
+---
+
+## 4. Pattern detectors
 
 Pattern detectors are shape-based, not statistic-based. They walk the raw event-transition series, identify discrete features (peaks, valleys, sustained slopes, single-step drops), and gate on those features rather than on a summary statistic like mean or standard deviation. A flat 90-day average can hide three undercut cycles or a 60% seller exit; these three detectors surface what the averages flatten. All three return a `detected` boolean plus a structured payload: read the boolean first, then the supporting fields.
 
@@ -374,7 +555,7 @@ Risk is recovery-first: if the most recent event `recovered`, risk is `low` rega
 
 ---
 
-## 4. Stability & trend
+## 5. Stability & trend
 
 This section groups the seven algorithms that score the "shape" of price, rank, and supply over time: how stable demand has been, what direction price is moving, where today's Buy Box sits inside the historical band, whether competing offers are converging, and how often Amazon itself goes dark on a listing. Each algorithm runs on the per-ASIN Keepa time series after promo spikes are excluded, and most operate on a 90- or 180-day window so recent behavior dominates the label. Together they form the trend half of `insights`, the volatility/direction layer that complements the point-in-time pricing and competition fields.
 
@@ -672,7 +853,7 @@ This section groups the seven algorithms that score the "shape" of price, rank, 
 
 ---
 
-## 5. Competition signals
+## 6. Competition signals
 
 This section covers algorithms that score the competitive landscape: who is in the market, how the Buy Box wins are distributed, how concentrated the offer stack is, and how much inventory backs each offer. The five algos read seller counts, BB winner transitions, per-offer fulfillment flags, and per-offer stock snapshots to produce a coherent picture of competitive pressure: Buy Box volatility (winner churn), effective competition (sellers actually pricing near the BB), FBA/FBM concentration (fulfillment dominance), seller concentration (HHI on shares), and stock depth (inventory and runway).
 
@@ -844,7 +1025,7 @@ This section covers algorithms that score the competitive landscape: who is in t
 
 ---
 
-## 6. Composite risk signals
+## 7. Composite risk signals
 
 Two higher-order signals aggregate the per-family detectors above into a single actionable read. They introduce no new measurements: they combine outputs from sections 3–5 so you get one verdict instead of several raw flags.
 

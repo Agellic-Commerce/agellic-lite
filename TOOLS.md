@@ -1,7 +1,7 @@
 # Tool Reference
 
 This document is the practitioner reference for the 8 MCP tools exposed by
-Agellic Lite v1.6.0, the free, bring-your-own-Keepa-key edition of the
+Agellic Lite v1.7.0, the free, bring-your-own-Keepa-key edition of the
 Agellic MCP server. Each section covers what the tool does, what it costs
 in Keepa tokens, what inputs it accepts, what it returns, and the operating
 rules worth knowing before you turn it loose on a candidate set. All Keepa
@@ -304,7 +304,12 @@ Per resolved ASIN:
 - **`identity`**: title, brand, category, manufacturer, `productCodes`
   (UPC/EAN/GTIN), Amazon URL, image URL.
 - **`pricing`**: current lowest new price, list price, Buy Box price,
-  30/90/180d averages, trend direction/strength, volatility score.
+  30/90/180d averages, trend direction/strength, volatility score, and
+  the **sell-price read** (`pricing.sellPrice`): observed sale-price
+  bands (`moveFastCents` / `marketCents` / `stretchCents` = p25 / median
+  / p75 of prices in force at inferred sale moments), the current
+  price's position inside them, sales skew, drift, and caveats. Bands
+  describe the observed market, never a recommendation.
 - **`sales`**: current and historical sales rank, primary + leaf BSR
   with category names, 30/90/180d drops, Amazon-reported monthly sold
   badge (when available; the model's range estimate lives in `demand`).
@@ -314,6 +319,12 @@ Per resolved ASIN:
   that gates which other fields are present, read it first), plus
   `caveats` (free-text qualifiers like "estimate from cross-marketplace
   baseline").
+- **`seasonality`**: whether a recurring seasonal peak exists and how
+  sure the detector is. `confirmationLevel` separates `confirmed` (the
+  peak recurred across 2+ years) from `candidate` (one season observed,
+  do not act on it alone); also the peak week window, calendar label
+  (Q4, Summer, etc.), current phase (`pre-peak` / `peak` / `post-peak` /
+  `off-season`), and concrete sourcing-window / lead-out dates.
 - **`competition`**: individual seller offers (FBA/FBM, prices, stock
   depth), Buy Box current winner, dominant seller + win %, rotation
   table, historical avg seller count.
@@ -324,8 +335,9 @@ Per resolved ASIN:
   effective competition (sellers within 5% of BB), IP risk,
   race-to-bottom warning. See
   [`COMPUTED-INSIGHTS.md`](COMPUTED-INSIGHTS.md) for the algorithms
-  behind every field in `demand`, `seasonality`, and `insights`, what
-  each measures, the constants, and how to read it.
+  behind every field in `demand`, `seasonality`, `pricing.sellPrice`,
+  and `insights`, what each measures, the constants, and how to read
+  it.
 - **`economics`**: referral fee percent, FBA pick & pack fee, return
   rate.
 - **`metadata`**: listing age, Subscribe & Save eligibility.

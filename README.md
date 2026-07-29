@@ -26,6 +26,11 @@ English and get a judgment, not a CSV to squint at.
 product moves, not just "BSR #14,000." The full methodology is written up in
 [COMPUTED-INSIGHTS.md](./COMPUTED-INSIGHTS.md).
 
+**Sell-price read.** "What can I actually sell this for?" Observed
+sale-price bands (move-fast / market / stretch) built from the prices in
+force at inferred sale moments, plus where the current price sits inside
+them. The observed market, not a guess.
+
 **Built for a base Keepa plan.** Base Keepa refills 1 token per minute, and a
 single deep product read costs several tokens. Agellic Lite is built around
 that limit instead of fighting it: costs are checked before spending, failed
@@ -110,7 +115,7 @@ You only ever pay Keepa, on your own Keepa subscription.
 
 ## Release status
 
-This is the **v1.6.0 release** of Agellic Lite, a free edition distributed
+This is the **v1.7.0 release** of Agellic Lite, a free edition distributed
 openly. Today's artifacts are unsigned builds; the trust stack (Sigstore and
 cosign supply-chain attestation, signed checksums, and an SBOM) is on the
 roadmap. Until then, install only from `Agellic-Commerce/agellic-lite` and
