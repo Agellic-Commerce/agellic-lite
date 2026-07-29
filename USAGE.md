@@ -67,8 +67,9 @@ re-paying for) the query.
 
 `get_product_details` on the shortlisted ASINs. Returns the full
 per-product picture: individual seller offers, FBA vs FBM split, stock
-depth, Buy Box rotation, calibrated demand range, review velocity, OOS
-history, referral fees, IP risk signals. ~8 tokens per uncached ASIN. On
+depth, Buy Box rotation, calibrated demand range, observed sell-price
+bands, seasonality confirmation, review velocity, OOS history, referral
+fees, IP risk signals. ~8 tokens per uncached ASIN. On
 base Keepa (1 TPM) a 10-ASIN batch (~80 tokens) is larger than one
 bucket, so it queues as a background job and Claude polls until done.
 

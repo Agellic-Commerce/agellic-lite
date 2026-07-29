@@ -1031,7 +1031,7 @@ Two higher-order signals aggregate the per-family detectors above into a single 
 
 ### IP risk (`insights.ipRisk`)
 
-**What it measures.** The likelihood that an intellectual-property complaint or platform enforcement action hit this listing, inferred from two corroborating footprints: a **seller cliff** (a sudden drop in seller count, §3) and a **review purge** (a sudden loss of reviews, §4). Runs for every product: both inputs are core signals, so offers data is not required.
+**What it measures.** The likelihood that an intellectual-property complaint or platform enforcement action hit this listing, inferred from two corroborating footprints: a **seller cliff** (a sudden drop in seller count, §4) and a **review purge** (a sudden loss of reviews, §5). Runs for every product: both inputs are core signals, so offers data is not required.
 
 **Output shape.** `{ riskLevel, signals, confidence, recoverySummary, timelineDays, summary }`
 
@@ -1088,4 +1088,4 @@ The level comes from the **active-family count**, *not* the raw signal count, so
 
 **How to read it.** `strong_pattern` (all four families) means broad, corroborated downward pressure: expect margin erosion. `watch` / `warning` are earlier signals; pair them with `priceDeclinePercent` and your own margin math. If `seasonalAdjusted` is true, discount the price-direction read: the decline is calendar-driven, not competition.
 
-**Caveats.** Aggregation only: the underlying detectors carry their own caveats (§3–§5). `activeSignals` can exceed the family count (correlated signals), so always read the *level* off families, not the raw signal tally.
+**Caveats.** Aggregation only: the underlying detectors carry their own caveats (§4–§6). `activeSignals` can exceed the family count (correlated signals), so always read the *level* off families, not the raw signal tally.
