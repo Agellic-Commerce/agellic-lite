@@ -1,7 +1,7 @@
 # Tool Reference
 
 This document is the practitioner reference for the 8 MCP tools exposed by
-Agellic Lite v1.7.0, the free, bring-your-own-Keepa-key edition of the
+Agellic Lite v1.7.1, the free, bring-your-own-Keepa-key edition of the
 Agellic MCP server. Each section covers what the tool does, what it costs
 in Keepa tokens, what inputs it accepts, what it returns, and the operating
 rules worth knowing before you turn it loose on a candidate set. All Keepa
@@ -505,26 +505,27 @@ nothing.
 Every successful call returns the same two-part base:
 
 1. **TextContent**, metadata line: ASIN, domain, range, dimensions,
-   curves enabled, a Keepa product URL (browser fallback), and a
-   token-cost note.
+   curves enabled, and a token-cost note.
 2. **ImageContent**: base64-encoded PNG (default 800 × 400). This is the
    channel the model sees (so it can analyse the chart), and it renders
    inline in Claude Code and Claude Desktop chat.
 
-On Claude Desktop's regular chat, the server additionally mounts an MCP
-Apps iframe to present the chart visually; every other surface uses the
-image block above.
+On Claude Desktop (regular chat and Cowork) the server additionally
+mounts an MCP Apps view to present the chart. In the ChatGPT desktop
+app the chart renders as an inline MCP Apps card when Codex's
+`enable_mcp_apps` feature flag is on (the installer offers to set it;
+see [INSTALL.md](./INSTALL.md#inline-chart-cards-in-chatgpt-desktop-optional))
+and you are signed in to ChatGPT. The Codex CLI terminal does not
+render images; the model still receives the chart for analysis.
 
 ### Critical notes
 
-- **Cowork limitation.** In Cowork (Claude Desktop's agent-mode surface)
-  the chart can't be displayed: the sandboxed VM doesn't paint inline
-  image content blocks and blocks reads of host-saved files. The model
-  still receives the chart image for analysis, and the Keepa product URL
-  in the text is the user-facing fallback: pair it with a
-  `get_product_details` readout for the richest Cowork answer. This is a
-  Cowork-side sandbox constraint, not an Agellic Lite bug. **Claude
-  Desktop's regular chat and Claude Code render the chart inline.**
+- **Cowork renders inline as of v1.7.1.** Earlier releases could not
+  display the chart in Cowork (Claude Desktop's agent-mode surface);
+  it now arrives as the same MCP Apps view regular chat uses. If
+  Cowork still shows text-only charts after an upgrade, quit Claude
+  Desktop fully (Cmd-Q) and reopen: Cowork keeps the previous server
+  process alive until a full quit.
 - **Non-PNG responses are rejected.** If Keepa returns an HTML error
   page with a 200 status, the tool surfaces `KEEPA_ERROR` instead of
   treating the bytes as an image.

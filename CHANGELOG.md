@@ -5,6 +5,47 @@ All notable changes to Agellic Lite are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.1] - 2026-07-31
+
+This release puts the price/BSR chart in front of you on two more
+surfaces: the ChatGPT desktop app (as an inline card, opt-in via the
+installer) and Cowork, which renders charts inline for the first time.
+
+### Added
+
+- **Inline chart cards in the ChatGPT desktop app.** `get_product_chart`
+  now renders as an MCP Apps card in the conversation when Codex's
+  `enable_mcp_apps` feature flag is on and you are signed in to ChatGPT.
+  Without the flag the chart still reaches the model; ChatGPT just shows
+  it inside the tool-call expander.
+- **The codex installer offers that flag, never flips it silently.**
+  Interactive `--host codex` installs and upgrades ask (default No);
+  non-interactive runs only act on the new `--enable-mcp-apps` flag. The
+  enable goes through `codex features enable` (Codex's own config
+  editor; your `config.toml` is never hand-edited), and a failure there
+  never fails the install. An explicit `enable_mcp_apps = false` or
+  `apps = false` in your config is always respected, and uninstall
+  leaves the flag alone. Expect a harmless "under-development features"
+  notice at codex startup once enabled. See
+  [INSTALL.md](./INSTALL.md#inline-chart-cards-in-chatgpt-desktop-optional).
+
+### Fixed
+
+- **Cowork renders charts inline.** Charts now arrive in Cowork (Claude
+  Desktop's agent-mode surface) as the same MCP Apps view regular chat
+  uses; earlier releases could only deliver a text readout there. Chart
+  display in Claude Desktop chat also survives a recent Claude Desktop
+  update that changed how tool results reach the chart view. If Cowork
+  still shows text-only charts after upgrading, quit Claude Desktop
+  fully (Cmd-Q) and reopen: Cowork keeps the previous server process
+  alive until a full quit.
+
+### Changed
+
+- **Chart summaries no longer include a Keepa browser URL line.** The
+  inline render (or the tool-call expander on surfaces without one) is
+  the chart channel; the URL line was a leftover fallback.
+
 ## [1.7.0] - 2026-07-29
 
 This release answers a question Agellic Lite could not answer before, "what

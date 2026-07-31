@@ -138,13 +138,8 @@ will work there too.
 
 ### Cowork limitations?
 
-In Cowork (Claude Desktop's agent-mode surface), `get_product_chart`
-can't display the chart image: the sandboxed VM doesn't paint inline
-image content blocks and blocks reads of host-saved files. The model
-still receives the chart for analysis, so you get an accurate readout
-plus the Keepa product URL, just not the inline picture. Every other
-tool works normally. Regular Claude Desktop chat and Claude Code both
-render the chart inline.
-
-When you need the chart visual, use a regular Claude Desktop chat thread
-or Claude Code.
+None for charts as of v1.7.1: `get_product_chart` now renders inline in
+Cowork, the same MCP Apps view regular chat uses. (Releases before
+v1.7.1 could only deliver a text readout there.) After upgrading, quit
+Claude Desktop fully (Cmd-Q) and reopen so Cowork picks up the new
+server. Every other tool works in Cowork as it always has.

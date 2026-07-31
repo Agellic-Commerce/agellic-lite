@@ -209,6 +209,37 @@ Then restart Codex CLI sessions and/or the ChatGPT desktop app, run
 `codex mcp list` (expect `agellic-lite`), and ask the assistant to call
 `check_token_balance`.
 
+### Inline chart cards in ChatGPT desktop (optional)
+
+With Codex's `enable_mcp_apps` feature flag on, `get_product_chart`
+renders as an inline card in the ChatGPT desktop conversation. Without
+it the chart still reaches the model; ChatGPT just shows it inside the
+tool-call expander.
+
+Codex installs and upgrades offer to set the flag; they never set it
+on their own. Interactive runs ask (default No). Non-interactive runs
+only act on the flag:
+
+```bash
+node install.mjs --host codex --non-interactive --enable-mcp-apps
+```
+
+Notes:
+
+- The enable goes through `codex features enable enable_mcp_apps`
+  (Codex's own config editor; your `config.toml` is never hand-edited),
+  and a failure here never fails the install.
+- An explicit `enable_mcp_apps = false` or `apps = false` already in
+  your config is respected: the installer reports it and changes
+  nothing.
+- The flag is marked under-development upstream, so codex prints a
+  harmless "under-development features" notice at startup once it is
+  enabled.
+- The card requires being signed in to ChatGPT in the desktop app.
+- Uninstall leaves the flag in place (it is user-level Codex
+  configuration). Turn it off any time with
+  `codex features disable enable_mcp_apps`.
+
 ### Adding Codex as a second host
 
 Already configured Agellic Lite in Claude Code or Claude Desktop on this

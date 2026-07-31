@@ -1,7 +1,7 @@
 # Troubleshooting
 
 First-install behavior, log locations, and the handful of things most
-likely to go sideways on your first run of Agellic Lite v1.7.0.
+likely to go sideways on your first run of Agellic Lite v1.7.1.
 
 ## 1. First-install behavior: what to expect
 
@@ -224,22 +224,19 @@ appear.
 ### 7. Cowork shows charts as text-only
 
 **Symptom:** You asked for a product price chart via Cowork (Claude
-Desktop's agent-mode surface) and got a text summary plus the Keepa URL
-but no rendered image. The same tool call from regular Claude Desktop
-chat or Claude Code renders the chart fine.
+Desktop's agent-mode surface) and got a text summary but no rendered
+image.
 
-**Cause:** Cowork runs the agent inside a sandboxed VM that (a) doesn't
-paint inline `type: 'image'` content blocks for the user and (b) blocks
-reads of files written outside the session's allowed directories, so a
-host-saved chart PNG can't be reached either. The chart is generated
-successfully and the model still receives the image for analysis; only
-the inline display to the user is unavailable on this surface.
+**Cause:** Releases before v1.7.1 could not display charts in Cowork.
+As of v1.7.1 the chart arrives in Cowork as the same MCP Apps view
+regular chat uses.
 
-**Remedy:** None on the Agellic side. This is a Cowork sandbox
-constraint, not an Agellic bug. In Cowork, use the data readout plus the
-Keepa product URL the tool returns (pair the chart request with
-`get_product_details` for a fuller picture). When you want the rendered
-chart, use regular Claude Desktop chat or Claude Code.
+**Remedy:** Upgrade to v1.7.1 (reinstall the `.mcpb`, or run the
+scripted upgrade). Then quit Claude Desktop fully (Cmd-Q) and reopen:
+Cowork keeps the previous server process alive until a full quit, so a
+plain window close leaves the old version running there. If charts
+still come back text-only after that, check that Claude Desktop itself
+is up to date.
 
 ### 8. A background job is stuck at `pending` or `running`
 

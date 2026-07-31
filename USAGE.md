@@ -134,10 +134,10 @@ When you want to see the picture, not the numbers.
 
 `get_product_chart` returns a PNG with the default reseller view:
 BSR, lowest new price, Buy Box price, and lowest FBA offer, all
-overlaid on a single chart at 800×400. 1 token. Claude Desktop's
-regular chat renders the image inline. (Cowork, the agent-mode
-surface, strips image content blocks before they reach the model, so
-you'll get the text annotation but no picture there.)
+overlaid on a single chart at 800×400. 1 token. Claude Desktop
+(regular chat and Cowork), Claude Code, and the ChatGPT desktop app
+(with the opt-in MCP Apps flag, see INSTALL.md) all render the chart
+inline.
 
 > Pull the BSR-only chart for the same ASIN at 365 days. I want to
 > see if there's seasonality.
