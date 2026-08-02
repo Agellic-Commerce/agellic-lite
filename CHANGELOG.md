@@ -5,6 +5,72 @@ All notable changes to Agellic Lite are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.0] - 2026-08-01
+
+Buy Box prices now include shipping. Every Buy Box number this server
+reports is the LANDED price (item + shipping), which is what a buyer
+actually pays and what Amazon charges its referral fee on. Expect a
+one-time value shift on shipped items: yesterday's $10.99 may read
+$15.98 today with no offer change at all. The item price did not move,
+the label got honest. Items with free shipping are unchanged.
+
+### Changed
+
+- **Buy Box prices are landed (item + shipping) on every surface.**
+  This is Keepa's native `csv[18]` series, which carries shipping across
+  the full 1095 days of history, so this lane has no cutover date and no
+  mixed-convention window. The change reaches `pricing.buyBox.*`
+  (current, the 30/90/180/365d averages, and the 365d min/max),
+  `competition.buyBox.priceCents`, the Buy Box lane of the sell-price
+  read, the price position insight, and the finder's `avgBuyBox` insight.
+- **Re-baseline any saved Buy Box thresholds.** A price filter, ROI
+  target, or alert level tuned against pre-1.8.0 item-only Buy Box
+  numbers is now being compared against a larger number on every shipped
+  item. This is the one thing worth checking after you upgrade.
+- **Offers sort by landed price.** The offer list in
+  `get_product_details` now orders by what you would actually pay, so
+  the offer at the top is the cheapest to receive rather than the one
+  with the lowest sticker and a shipping charge hidden behind it.
+- **Finder price filters were always landed, and now say so.**
+  `current_BUY_BOX_SHIPPING`, `delta30/90_BUY_BOX_SHIPPING`, and
+  `buyBoxStandardDeviation30/90/365` are Keepa fields that have always
+  included shipping (the `_SHIPPING` suffix is the tell). Only the
+  wording changed here, no filter behavior did.
+
+### Added
+
+- **`pricing.buyBox.shippingBasis: 'landed'`** marks the new contract.
+  Its absence marks a stale pre-landed payload, so anything reading
+  these fields programmatically can tell the two apart without guessing.
+- **Reconciliation components.** `pricing.buyBox.itemCents` and
+  `pricing.buyBox.shippingCents` show exactly how a landed price splits.
+  They appear only when shipping is greater than zero, so free-shipping
+  items carry neither.
+- **Basis disclosure on the read surfaces.** `pricing.sellPrice` and the
+  price position insight now declare a `shippingBasis` of `landed`,
+  `item-only`, or `mixed-window`. The last one means the window straddles
+  the date Keepa started including shipping in its lowest-new series, so
+  the prices inside it mix both conventions and are not comparable to
+  each other.
+- **`pricing.sellPrice.marketState: 'suppressed'`** on listings whose
+  Buy Box is suppressed. A normal market has no state worth reporting,
+  so the field is present only when there is something to disclose.
+
+### Fixed
+
+- **The lowest-new shipping-inclusion date was a week early.** Keepa
+  began including shipping in its lowest-new series on 2026-02-23, not
+  2026-02-16. The earlier date comes from a comment bug in Keepa's own
+  Java client. Reads whose window crosses that boundary now caveat
+  against the right instant.
+- **Honest wording when a listing only ever held two prices.** The
+  time-at-price hero used to print the entire coverage window as though
+  a single price had held for all of it. It now reports the dominant
+  price with its real dwell time, or the range across both levels.
+- **Chart captions scope the landed claim to the Buy Box curve.** The
+  new-offer curve is item-only before 2026-02-23, and the caption now
+  says so instead of implying every curve on the chart is landed.
+
 ## [1.7.1] - 2026-07-31
 
 This release puts the price/BSR chart in front of you on two more

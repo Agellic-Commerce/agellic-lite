@@ -1,7 +1,7 @@
 # Tool Reference
 
 This document is the practitioner reference for the 8 MCP tools exposed by
-Agellic Lite v1.7.1, the free, bring-your-own-Keepa-key edition of the
+Agellic Lite v1.8.0, the free, bring-your-own-Keepa-key edition of the
 Agellic MCP server. Each section covers what the tool does, what it costs
 in Keepa tokens, what inputs it accepts, what it returns, and the operating
 rules worth knowing before you turn it loose on a candidate set. All Keepa
@@ -62,9 +62,11 @@ end of the section shows sample translations.
 
 - The user has no ASINs yet and wants to find products matching criteria.
 - The user wants to **size a market**: fetch `includeStats=true` on a
-  follow-up call after a filter-only recon to get avg Buy Box price,
-  seller counts, Amazon share, brand fragmentation, FBA share, avg
-  rating, and avg review count across the matched set.
+  follow-up call after a filter-only recon to get avg landed Buy Box
+  price (`avgBuyBox`: item + shipping, the same amount Amazon charges
+  its referral fee on), seller counts, Amazon share, brand
+  fragmentation, FBA share, avg rating, and avg review count across the
+  matched set.
 
 Not the right tool when the user already has ASINs: go straight to
 `get_product_details`.
@@ -88,14 +90,14 @@ least one real filter is required besides `domain` / `page` / `perPage`
 
 Common numeric range filters (use `_gte` / `_lte` suffixes):
 
-- `current_BUY_BOX_SHIPPING`: Buy Box price in cents ($40 → 4000). The
-  default when the user says "price".
+- `current_BUY_BOX_SHIPPING`: Landed Buy Box price, item + shipping, in
+  cents ($40 → 4000). The default when the user says "price".
 - `current_SALES`: Best Sellers Rank (lower = better).
 - `current_RATING`: 0–50 scale (4.5 stars → 45).
 - `current_COUNT_NEW`: Listed new-seller count. Default when the user
   says "sellers".
-- `delta30_BUY_BOX_SHIPPING`, `delta90_BUY_BOX_SHIPPING`: Price delta
-  vs avg (positive = price dropped).
+- `delta30_BUY_BOX_SHIPPING`, `delta90_BUY_BOX_SHIPPING`: Landed Buy Box
+  price delta vs avg (positive = price dropped).
 - `deltaPercent30_SALES`, `deltaPercent90_SALES`: BSR delta percent
   (positive = rank improved).
 - `packageWeight` (grams; 1 lb = 454g), `packageHeight` / `packageLength`
@@ -120,8 +122,8 @@ String / array filters:
 
 Price stability and flip filters:
 
-- `buyBoxStandardDeviation30/90/365`: Buy Box volatility in cents.
-  `_lte` for stable, `_gte` for volatile.
+- `buyBoxStandardDeviation30/90/365`: Landed Buy Box price volatility in
+  cents. `_lte` for stable, `_gte` for volatile.
 - `flipability30/90/365` (0–255): dip+rebound score. `_gte` for
   swing-prone, `_lte` to exclude.
 - Timeframes: 30d = recent, 90d = typical sourcing window, 365d =
@@ -310,6 +312,17 @@ Per resolved ASIN:
   / p75 of prices in force at inferred sale moments), the current
   price's position inside them, sales skew, drift, and caveats. Bands
   describe the observed market, never a recommendation.
+
+  Every Buy Box price in this block is **landed** (item + shipping),
+  Keepa's native `csv[18]` basis: `pricing.buyBox.currentCents`, the
+  30/90/180/365d averages, and the 365d min/max.
+  `pricing.buyBox.shippingBasis: 'landed'` marks that contract, and its
+  absence marks a stale pre-landed payload. When shipping is greater
+  than zero, `itemCents` and `shippingCents` show how the landed price
+  splits; on free-shipping items both are absent.
+  `pricing.sellPrice` declares its own `shippingBasis` (`landed`,
+  `item-only`, or `mixed-window`) and carries
+  `marketState: 'suppressed'` when the Buy Box is suppressed.
 - **`sales`**: current and historical sales rank, primary + leaf BSR
   with category names, 30/90/180d drops, Amazon-reported monthly sold
   badge (when available; the model's range estimate lives in `demand`).
@@ -327,7 +340,11 @@ Per resolved ASIN:
   `off-season`), and concrete sourcing-window / lead-out dates.
 - **`competition`**: individual seller offers (FBA/FBM, prices, stock
   depth), Buy Box current winner, dominant seller + win %, rotation
-  table, historical avg seller count.
+  table, historical avg seller count. Offers are ordered by **landed**
+  price, so the offer at the top is the cheapest to actually receive,
+  not the one with the lowest sticker and a shipping charge behind it.
+  `competition.buyBox.priceCents` is the same landed value and basis as
+  `pricing.buyBox.currentCents`.
 - **`reviews`**: rating, review count, velocity (added 30/90/180d),
   trend (accelerating/steady/slowing), historical avg.
 - **`supply`**: Amazon OOS 30/90/180d, marketplace OOS 90d.

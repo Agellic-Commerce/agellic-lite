@@ -1,7 +1,7 @@
 # Troubleshooting
 
 First-install behavior, log locations, and the handful of things most
-likely to go sideways on your first run of Agellic Lite v1.7.1.
+likely to go sideways on your first run of Agellic Lite v1.8.0.
 
 ## 1. First-install behavior: what to expect
 
@@ -231,7 +231,7 @@ image.
 As of v1.7.1 the chart arrives in Cowork as the same MCP Apps view
 regular chat uses.
 
-**Remedy:** Upgrade to v1.7.1 (reinstall the `.mcpb`, or run the
+**Remedy:** Upgrade to v1.7.1 or later (reinstall the `.mcpb`, or run the
 scripted upgrade). Then quit Claude Desktop fully (Cmd-Q) and reopen:
 Cowork keeps the previous server process alive until a full quit, so a
 plain window close leaves the old version running there. If charts

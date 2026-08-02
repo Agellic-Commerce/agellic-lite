@@ -75,6 +75,38 @@ is lost. So for a big product-details batch or a large code-resolution
 run, kick it off and leave Claude running; it drains as your Keepa
 tokens refill.
 
+## Prices
+
+### Why did Buy Box prices jump after upgrading to v1.8.0?
+
+Because they now include shipping. As of v1.8.0 every Buy Box price this
+server reports is the **landed** price (item + shipping), which is what a
+buyer actually pays and what Amazon charges its referral fee on. A product
+that read $10.99 before may read $15.98 now with no offer change at all:
+the item price did not move, the label got honest. Products with free
+shipping are unaffected, because their shipping component is zero.
+
+The practical follow-up: re-check any saved price filter, ROI target, or
+alert threshold you tuned against the old item-only numbers, since those
+are now being compared against a larger number on shipped items.
+
+### Which prices are landed, and which are not?
+
+The Buy Box lane is landed everywhere and always: `pricing.buyBox.*`,
+`competition.buyBox.priceCents`, the Buy Box lane of the sell-price read,
+price position, and the finder's `avgBuyBox`. Keepa's Buy Box series
+carries shipping across its entire history, so there is no cutover date on
+this lane.
+
+The lowest-new lane is the one with a boundary: Keepa began including
+shipping there on 2026-02-23, and it was item-only before that. Any read
+that depends on it declares a `shippingBasis` of `landed`, `item-only`, or
+`mixed-window`, and a `mixed-window` result means the window straddles that
+date, so the prices inside it were measured two different ways.
+
+When shipping is greater than zero, `pricing.buyBox.itemCents` and
+`pricing.buyBox.shippingCents` show you exactly how a landed price splits.
+
 ## About Agellic Lite
 
 ### Is Agellic Lite really free?

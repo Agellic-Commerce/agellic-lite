@@ -371,13 +371,25 @@ percentile, so the output can never report a price that never occurred.
 - **`moveFastCents` / `marketCents` / `stretchCents`**: p25 / median / p75
   of the observed distribution, in the marketplace's smallest currency
   unit.
-- **`priceBasis`**: `buy-box` or `lowest-new`. Every price field in the
-  block derives from this one series; an item-only buy-box current is never
-  compared against shipping-inclusive lowest-new bands. When the selected
+- **`priceBasis`**: `buy-box` or `lowest-new`. Names the price LANE. Every
+  price field in the block derives from that one series, so a current from
+  one lane is never compared against bands from the other. When the selected
   basis has no live current value, all five current-relative fields
   (`currentPriceCents`, `currentPercentile`, `currentPosition`,
   `floorDistancePercent`, `atFloor`) go null together; the historical bands
   still stand.
+- **`shippingBasis`**: `landed` / `item-only` / `mixed-window`. Names the
+  shipping convention of that lane over the window actually read, which is
+  a separate question from which lane it is. The buy-box lane is Keepa's
+  native landed series (item + shipping) across its whole history, so it
+  always answers `landed`. The lowest-new lane is item-only before
+  2026-02-23 and shipping-inclusive on or after it, so its answer depends
+  on where the window sits; a window that straddles that instant reads
+  `mixed-window`, meaning the price levels inside it were measured two
+  different ways and are not comparable to each other.
+- **`marketState`**: present only as `'suppressed'`, on listings whose Buy
+  Box is suppressed. A normal market has no state worth reporting, so the
+  field is absent rather than null when nothing is wrong.
 - **`currentPosition`**: `below-move-fast` / `move-fast-to-market` /
   `market-to-stretch` / `above-stretch`.
 - **`eventCount` / `keepaDropCount`**: matched sale events vs. Keepa's own
@@ -419,9 +431,11 @@ coverage days, else `low`. Guards only ever ratchet confidence *down*:
 ### Caveats worth knowing
 
 - **Shipping convention**: Keepa's lowest-new series includes shipping only
-  from 2026-02-16 onward. A lowest-new read whose window reaches back
+  from 2026-02-23 onward. A lowest-new read whose window reaches back
   before that date is comparing prices measured two different ways, and
   says so in a caveat (fully-before vs. straddling get distinct wording).
+  The buy-box lane has no such boundary: it is landed across its entire
+  history.
 - **Quartile collapse**: when all bands land on one value, the hero
   reframes honestly: `sold at $X (N sale events)` when every matched price
   was identical, or `sale prices clustered at $X` plus the real min–max
@@ -736,7 +750,7 @@ This section groups the seven algorithms that score the "shape" of price, rank, 
 
 **Why it matters.** Tells you whether you're buying at a discount, at typical, or near the ceiling. A `well_below` reading with high reversion likelihood is the entry signal; `well_above` warns of compression risk.
 
-**Method.** Removes promo spikes from the full history, then converts the clean events to in-state intervals so each price contributes proportional to how long it actually held. `durationWeightedDistribution` returns parallel value/weight arrays. Percentile is the duration-weighted fraction of mass strictly below the current price plus half the mass equal to it. Computes a duration-weighted mean and variance, takes std dev, and floors std dev at `1% of mean` so a stable listing with near-zero variance doesn't produce extreme z-scores. Uses the canonical `currentPriceCents` (Buy Box item price, item-only, excluding shipping) rather than the latest series value when available. Floor is `historicalMinCents` if provided, else the min of the distribution values. Counts support touches as any clean event within 5% of the floor.
+**Method.** Removes promo spikes from the full history, then converts the clean events to in-state intervals so each price contributes proportional to how long it actually held. `durationWeightedDistribution` returns parallel value/weight arrays. Percentile is the duration-weighted fraction of mass strictly below the current price plus half the mass equal to it. Computes a duration-weighted mean and variance, takes std dev, and floors std dev at `1% of mean` so a stable listing with near-zero variance doesn't produce extreme z-scores. Uses the canonical `currentPriceCents` (the landed Buy Box price: item + shipping) rather than the latest series value when available. Floor is `historicalMinCents` if provided, else the min of the distribution values. Counts support touches as any clean event within 5% of the floor.
 
 **Constants.**
 - `PRICE_FLOOR_PROXIMITY_PERCENT = 5`: "within 5% of floor" = a support touch.
@@ -755,9 +769,17 @@ This section groups the seven algorithms that score the "shape" of price, rank, 
   reversionLikelihood: 'high' | 'moderate' | 'low';
   distanceFromFloorPercent: number;     // negative means below the floor (new low)
   supportTouches: number;
+  priceBasis: 'buy-box' | 'lowest-new';           // which LANE it was computed on
+  shippingBasis: 'landed' | 'item-only' | 'mixed-window';  // that lane's shipping convention
   summary: string;
 }
 ```
+
+`priceBasis` and `shippingBasis` use the same vocabulary as
+`pricing.sellPrice` (see [3. Sell-price read](#3-sell-price-read)):
+`buy-box` is always `landed`, while a `lowest-new` window that straddles
+2026-02-23 reads `mixed-window` and should not be read as a single
+comparable distribution.
 
 **How to read it.**
 - `well_below` + `reversionLikelihood: 'high'` + `supportTouches ≥ 3` is the textbook mean-reversion setup: price has bounced off this floor multiple times before.

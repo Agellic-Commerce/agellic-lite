@@ -158,8 +158,9 @@ products.
 
 Two-step. First call: `execute_keepa_finder` filters-only to learn
 the match count. Second call: same filters plus `includeStats=true`,
-which returns the `searchInsights` summary: average Buy Box price,
-median seller count, the share of listings where Amazon is the Buy
+which returns the `searchInsights` summary: average landed Buy Box
+price (item + shipping, the same amount Amazon charges its referral fee
+on), median seller count, the share of listings where Amazon is the Buy
 Box winner, brand fragmentation across the match set, FBA share,
 average rating, average review count. The stats call costs `30 + ⌈
 totalResults / 1M⌉` tokens; refine first if the count is very large.
