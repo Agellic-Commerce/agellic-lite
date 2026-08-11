@@ -33,16 +33,20 @@ them. The observed market, not a guess.
 
 **Built for a base Keepa plan.** Base Keepa refills 1 token per minute, and a
 single deep product read costs several tokens. Agellic Lite is built around
-that limit instead of fighting it: costs are checked before spending, failed
-calls are refunded, cached reads are free, and anything too big to run right
-now **queues and drains itself** as your tokens refill. See
+that limit instead of fighting it: costs are checked before spending, charges
+settle at Keepa's own figure rather than the quote, cached reads are free, and
+anything too big to run right now **runs itself** as your tokens refill. See
 [TOKENS-AND-QUEUE.md](./TOKENS-AND-QUEUE.md).
 
-**Background jobs that drain themselves, locally.** Too big to run right now?
-It queues and works the backlog automatically as Keepa tokens refill, no
-babysitting. It runs on **your machine, not the cloud: leave the app open and
-the machine awake for jobs to progress**, and the queue is durable, so
-quitting pauses it and relaunching resumes right where it left off.
+**Durable work orders that run themselves, locally.** Too big to run right
+now? The call is accepted anyway, as a work order that funds itself as Keepa
+tokens refill, no babysitting. You get the cost and a time bound as two
+separate claims, the bound counts down every time you check, and you can read
+what has settled without waiting for the rest or stop it and keep what
+landed. Anything over an hour of refill asks for your go-ahead first. It runs
+on **your machine, not the cloud: leave the app open and the machine awake for
+work to progress**, and orders are durable, so quitting pauses them and
+relaunching resumes right where they left off.
 
 **Remembers across chats.** Fetched products and result sets are cached on
 your machine and shared across every chat and every connected app, so you
@@ -100,10 +104,10 @@ You only ever pay Keepa, on your own Keepa subscription.
 
 - [**Install guide**](./INSTALL.md): requirements, step-by-step for Claude
   Desktop, Claude Code, and Codex, plus upgrade and uninstall.
-- [**Tool reference**](./TOOLS.md): the 8 tools, what each one does, and what
+- [**Tool reference**](./TOOLS.md): the 9 tools, what each one does, and what
   it costs in Keepa tokens.
-- [**Tokens and the queue**](./TOKENS-AND-QUEUE.md): how the token budget, the
-  cache, and the background queue work together on a base Keepa plan.
+- [**Tokens and work orders**](./TOKENS-AND-QUEUE.md): how the token budget,
+  the cache, and durable work orders work together on a base Keepa plan.
 - [**Computed insights**](./COMPUTED-INSIGHTS.md): the algorithms behind every
   number `get_product_details` returns.
 - [**Usage examples**](./USAGE.md): example prompts to try first.
@@ -115,7 +119,7 @@ You only ever pay Keepa, on your own Keepa subscription.
 
 ## Release status
 
-This is the **v1.8.0 release** of Agellic Lite, a free edition distributed
+This is the **v2.0.0 release** of Agellic Lite, a free edition distributed
 openly. Today's artifacts are unsigned builds; the trust stack (Sigstore and
 cosign supply-chain attestation, signed checksums, and an SBOM) is on the
 roadmap. Until then, install only from `Agellic-Commerce/agellic-lite` and

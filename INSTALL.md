@@ -74,7 +74,7 @@ boots in **configuration-pending mode**:
   do.
 - Paste your Keepa key into the form and click **Save**. Claude Desktop
   restarts the extension automatically.
-- After a few seconds, the placeholder is replaced with the full 8-tool set.
+- After a few seconds, the placeholder is replaced with the full 9-tool set.
 
 You should **not** see a red "could not find a valid license" banner: Agellic
 Lite has no license to find. If a tool call reports a missing Keepa key, open
@@ -303,10 +303,10 @@ explicitly only to rotate the key.
 
 The upgrade uses a sibling staging directory and atomic renames: an
 interrupted upgrade leaves the previous install intact, never half-installed.
-It also clears cached lookups, finder and code results, and the job queue (your
-key and rate-limit state are kept), so a stale result id from before the
-upgrade re-runs cleanly. Those cleared stores are shared, so restart your
-other connected hosts after upgrading any one of them.
+It also clears the product cache and the stored result sets (your key,
+rate-limit state, and durable work orders are kept), so a stale result id from
+before the upgrade re-runs cleanly. Those cleared stores are shared, so restart
+your other connected hosts after upgrading any one of them.
 
 ### Codex
 
@@ -411,9 +411,9 @@ unzip it, and run `node install.mjs --uninstall` (add `--remove-bin` or
 
 **Quit every host before `--purge`** (Claude Desktop, Claude Code sessions,
 Codex CLI sessions, and the ChatGPT desktop app). The purge deletes
-`~/.agellic-lite/`, but a server process that's still running recreates
-`~/.agellic-lite/jobs/` on its next job-queue tick, so the data dir can
-reappear seconds after the purge reports success. On macOS a Claude Desktop
+`~/.agellic-lite/`, but a server process that's still running recreates its
+store directories on the next scheduler tick, so the data dir can reappear
+seconds after the purge reports success. On macOS a Claude Desktop
 extension can keep running from memory even after you remove it in Settings, so
 quit Claude Desktop fully (not just close the window). If you already purged
 and `~/.agellic-lite/` came back, quit every host and `rm -rf ~/.agellic-lite`
@@ -430,7 +430,7 @@ once more.
 | `~/.agellic-lite/credentials-lite.json` | Shared per-machine credential cache (mode 0600). All hosts read; written after every successful server boot AND after every successful installer probe |
 | Canonical bin paths | `server.js` + dependencies + `version.json`, one tree per scripted host: `Agellic-Lite` (Claude Code), `Agellic-Lite-Codex` (Codex) |
 | CD extension dir | Same server tree, managed by Claude Desktop (Claude Desktop only) |
-| `~/.agellic-lite/` | Shared data dir: credential cache, cached products, result sets, token bucket state, job queue, logs |
+| `~/.agellic-lite/` | Shared data dir: credential cache, cached products, result sets, token bucket state, work orders, logs |
 
 The data dir can be overridden via the `AGELLIC_LITE_DATA_DIR` environment
 variable. The bin paths and CD extension paths are platform conventions and not

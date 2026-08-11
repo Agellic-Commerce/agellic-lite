@@ -1,7 +1,7 @@
 # Troubleshooting
 
 First-install behavior, log locations, and the handful of things most
-likely to go sideways on your first run of Agellic Lite v1.8.0.
+likely to go sideways on your first run of Agellic Lite v2.0.0.
 
 ## 1. First-install behavior: what to expect
 
@@ -23,7 +23,7 @@ After you drag `agellic-lite.mcpb` into Settings → Extensions:
    placeholder along with a description of what to enter and where.
 4. Once you save the credential form, Claude Desktop auto-restarts the
    extension. After ~2-5 seconds the placeholder is replaced with the
-   full **8-tool** set and you're ready to use Agellic Lite.
+   full **9-tool** set and you're ready to use Agellic Lite.
 
 You should **not** see any error banner on a brand-new install. If you
 see an error instead of the `_configure_agellic` placeholder, the
@@ -46,7 +46,7 @@ After you `unzip agellic-lite.zip` and run `node install.mjs`:
    the MCP config entry, so if the Keepa key is wrong you'll see the
    error immediately, not on first tool call.
 4. There is no placeholder mode on Claude Code: either the install
-   completes with all 8 tools available, or it fails with a specific
+   completes with all 9 tools available, or it fails with a specific
    error you can act on.
 
 ### Codex CLI + ChatGPT desktop
@@ -189,28 +189,35 @@ Desktop ships its own Node, so this only affects Claude Code installs.)
 **Remedy:** Upgrade Node to a supported version, then re-run
 `node install.mjs`. Check your version with `node --version`.
 
-### 5. The token bucket is empty: your work is queued
+### 5. The token bucket is empty: your work runs in the background
 
-**Symptom:** A tool call returns a `wait <N> minutes` message, or you
-see `token-bucket: exhausted` in the Agellic Lite log, or a costly call
-comes back with a `jobId` instead of an immediate result.
+**Symptom:** A costly call comes back with an `orderId` (`wo_...`), a
+cost, and an ETA instead of an immediate result, or with a quote and a
+`confirmToken` asking you to confirm first. Or you see `token-bucket:
+exhausted` in the Agellic Lite log.
 
 **Cause:** You've spent your available Keepa tokens for the moment. On
 base Keepa (1 TPM) the bucket holds 60 tokens and refills 1 per minute,
 so any batch larger than that has to wait for refills. This is normal,
-not a failure.
+not a failure, and nothing was lost: the request was accepted as a
+durable work order.
 
-**Remedy:** Nothing to do. Larger lookups queue as a background job:
-poll with `check_job_status` and the result lands once the bucket has
-refilled enough to cover it. You don't need to re-issue the request. If
-your Keepa subscription actually allows a higher refill rate than 1 TPM,
-set `AGELLIC_LITE_TOKENS_PER_MINUTE` to that value (or let the boot
-probe auto-detect it) and the queue drains faster.
+**Remedy:** Nothing to do, other than confirming if you were asked to.
+The order funds itself as tokens refill; poll it with `check_job_status`
+and read rows as they settle with `action: "fetch"`. **Do not re-issue
+the request**, since there is no deduplication and a second call pays
+Keepa twice. If your Keepa subscription actually allows a higher refill
+rate than 1 TPM, set `AGELLIC_LITE_TOKENS_PER_MINUTE` to that value (or
+let the boot probe auto-detect it) and orders drain faster.
 
-### 6. Claude Desktop: the 8 tools don't appear after install
+One exception: `get_product_chart` is not a work order. On an empty
+bucket it returns a short "retry in ~N seconds" hint instead, because a
+chart costs a single token and is not worth queueing.
+
+### 6. Claude Desktop: the 9 tools don't appear after install
 
 **Symptom:** You installed the `.mcpb`, the extension shows as
-connected, but the tool list shows fewer than 8 tools (or only
+connected, but the tool list shows fewer than 9 tools (or only
 `_configure_agellic` persists after you've saved credentials).
 
 **Cause:** Claude Desktop only re-reads its extension's tool list on
@@ -218,7 +225,7 @@ cold start. A window close (Cmd+W on macOS, or the X button on Windows)
 doesn't count: the app process is still running.
 
 **Remedy:** Fully quit Claude Desktop (**Cmd+Q on macOS**, or right-click
-the tray icon → Quit on Windows) and reopen. The full 8-tool set will
+the tray icon → Quit on Windows) and reopen. The full 9-tool set will
 appear.
 
 ### 7. Cowork shows charts as text-only
@@ -238,32 +245,43 @@ plain window close leaves the old version running there. If charts
 still come back text-only after that, check that Claude Desktop itself
 is up to date.
 
-### 8. A background job is stuck at `pending` or `running`
+### 8. A work order isn't finishing
 
-**Symptom:** A tool call returned a `jobId` (a large product-details
+**Symptom:** A tool call returned an `orderId` (a large product-details
 batch, a big code resolution, or a finder), but `check_job_status` keeps
-reporting `pending` or `running` and the result never lands.
+reporting it as unfinished and the result never lands.
 
-**Cause:** Two normal, non-error reasons, usually one of:
+**Cause:** Three normal, non-error reasons, usually one of:
 
-- **Waiting for tokens.** A big job needs the Keepa bucket to refill
-  enough capacity before it can run. On base Keepa (1 TPM) a 100-ASIN
-  details batch (~800 tokens) takes many refill cycles. The job stays
-  `pending` until the bucket can cover it. `check_job_status` reports
-  the queue position, the funding gate, and an ETA so you can see it's
-  progressing.
-- **The host isn't running.** The job runner lives inside the MCP server
+- **Waiting for tokens.** A big order needs the Keepa bucket to refill
+  before its next batch can fire. On base Keepa (1 TPM) a 50-ASIN
+  details order (800 tokens quoted) takes many refill cycles. The
+  `status` view reports how many orders are ahead, an ETA bound that
+  counts down on every poll, and a `projected:` line, so you can see it
+  is progressing.
+- **Waiting for you.** An order in the `quoted` state is awaiting
+  consent and will never start on its own. The status view says
+  `AWAITING CONSENT` and carries the live `confirmToken`; the assistant
+  starts it with `confirm_work_order`.
+- **The host isn't running.** The scheduler lives inside the MCP server
   process, which only runs while a connected host (Claude Desktop,
   Claude Code, Codex CLI, or ChatGPT desktop) is open. Quit the host or
-  let the machine sleep/shut down and the queue stops making progress:
-  there is no cloud worker.
+  let the machine sleep and the order stops making progress: there is no
+  cloud worker.
 
-**Remedy:** Leave a connected app open and the machine awake; the job
-drains on its own as tokens refill. If you did quit, nothing is lost:
-the job's lease is reclaimed on the next launch and it resumes where it
-left off. Poll with `check_job_status`. To abandon a job you no longer
-want, ask the assistant to cancel it via `check_job_status`, which
-exposes a cancel action.
+**Remedy:** Leave a connected app open and the machine awake; the order
+advances on its own as tokens refill. Polling does not speed it up. If
+you did quit, nothing is lost: the order's lease is reclaimed on the next
+launch and it resumes where it left off.
+
+Two things worth knowing while you wait. **`authorised:` is not
+`started:`**: an order can be authorised and still be sitting behind
+other orders, which the `started:` line says outright. And you can read
+what has settled so far at any time with `check_job_status`
+`action: "fetch"`, rather than waiting for the whole order. To abandon
+one you no longer want, ask the assistant to cancel it: a not-yet-started
+order stops instantly, a running one stops at its next dispatch boundary
+and keeps everything it settled.
 
 ### 9. Codex: `codex` CLI not found
 

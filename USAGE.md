@@ -1,7 +1,7 @@
 # Usage examples
 
 A starter set of prompts to try once Agellic Lite is installed and
-connected. These are not exhaustive: Agellic Lite gives Claude eight
+connected. These are not exhaustive: Agellic Lite gives Claude nine
 tools and they compose freely. This is a starter set; the per-tool
 reference is in [TOOLS.md](./TOOLS.md).
 
@@ -69,9 +69,12 @@ re-paying for) the query.
 per-product picture: individual seller offers, FBA vs FBM split, stock
 depth, Buy Box rotation, calibrated demand range, observed sell-price
 bands, seasonality confirmation, review velocity, OOS history, referral
-fees, IP risk signals. ~8 tokens per uncached ASIN. On
-base Keepa (1 TPM) a 10-ASIN batch (~80 tokens) is larger than one
-bucket, so it queues as a background job and Claude polls until done.
+fees, IP risk signals. Quoted at 16 tokens per uncached ASIN, settling
+at ~6-8. On base Keepa (1 TPM) a 10-ASIN batch quotes 160 tokens, well
+over an hour of refill, so Claude comes back with a **quote and asks you
+to confirm** before anything starts. Say yes and it runs itself in the
+background; you can read products as they settle without waiting for
+the whole batch.
 
 ## Resolving supplier codes
 
@@ -83,15 +86,19 @@ When you have a supplier manifest of barcodes rather than ASINs.
 `resolve_codes` bulk-resolves UPC / EAN / GTIN / ISBN codes (up to 500
 rows per call) to candidate ASINs at Keepa's identity tier. Rows that
 map to more than one candidate are flagged so you know which need a
-human eye. ~1 token per returned candidate. Page the full per-row table
-any time with `get_codes_result`, which is free.
+human eye. Keepa bills ~1 token per returned candidate, but the order is
+quoted at the worst case (`unique codes × 3`), so 300 codes quotes 900
+tokens and comes back as a **confirmation request** on a base plan. It
+settles far lower than the quote. Page the full per-row table any time
+with `get_codes_result`, which is free, and read rows as they settle
+mid-run with `check_job_status`.
 
 > For the codes that resolved to a single ASIN, give me the calibrated
 > demand estimate on each.
 
 `get_product_details` on the clean matches. Identity resolution is
-cheap; the demand and offer-level detail is where the tokens go. ~8
-tokens per uncached ASIN.
+cheap; the demand and offer-level detail is where the tokens go. Quoted
+at 16 tokens per uncached ASIN, settling at ~6-8.
 
 ## Deep-dive on a shortlist
 
@@ -103,19 +110,22 @@ When you have a handful of ASINs and need offer-level depth.
 `get_product_details` returns each ASIN's Buy Box rotation table:
 dominant seller, win share, unique winner count over the window, plus
 a volatility flag in the insights block. Claude reads off who's
-stable, who's getting flipped, and whether Amazon is in the mix. ~40
-tokens cold.
+stable, who's getting flipped, and whether Amazon is in the mix. Quoted
+at 80 tokens cold (5 × 16), so on a base plan expect a confirmation
+request first; the actual charge lands nearer 30-40.
 
 > For ASIN B0CJT5D35W, what's the calibrated monthly sales estimate
 > and how confident is the model in it?
 
-`get_product_details` on a single ASIN. The `demand` block leads with a
+`get_product_details` on a single ASIN, which fits inline on a base plan.
+The `demand` block leads with a
 `mode` field that tells you which estimation path fired: `read` (a
 computed range with low / likely / high plus a confidence label of
 `high`/`medium`/`low`), `badge` (Amazon's own "X+ bought past month"
 figure, taken as ground truth), or `no-read` (signal too weak to
 estimate, with a reason). This is a range estimate, not a forecast: the
-confidence and mode matter as much as the number. ~8 tokens.
+confidence and mode matter as much as the number. 16 tokens quoted,
+~6-8 charged.
 
 > Look up the ASIN for UPC 012345678905 on Amazon US.
 
@@ -156,14 +166,19 @@ products.
 > how many sellers per listing, and how often is Amazon on these
 > listings?
 
-Two-step. First call: `execute_keepa_finder` filters-only to learn
-the match count. Second call: same filters plus `includeStats=true`,
-which returns the `searchInsights` summary: average landed Buy Box
-price (item + shipping, the same amount Amazon charges its referral fee
-on), median seller count, the share of listings where Amazon is the Buy
-Box winner, brand fragmentation across the match set, FBA share,
-average rating, average review count. The stats call costs `30 + ⌈
-totalResults / 1M⌉` tokens; refine first if the count is very large.
+Two-step, and on Agellic Lite the two steps are mandatory. First call:
+`execute_keepa_finder` filters-only to learn the match count. Second
+call: the same filters plus `includeStats=true` **and**
+`expectedTotalResults` set to that count, which is what prices the
+surcharge before anything is spent (without it the call is refused, with
+nothing created and nothing charged). You get the `searchInsights`
+summary: average landed Buy Box price (item + shipping, the same amount
+Amazon charges its referral fee on), median seller count, the share of
+listings where Amazon is the Buy Box winner, brand fragmentation across
+the match set, FBA share, average rating, average review count. The
+stats leg costs `30 + ⌊totalResults / 1M⌋` tokens, so under a million
+matches it is exactly 30. On a 60-token bucket that is most of your
+hour, and Claude will say so and ask before spending it.
 
 > In Pet Supplies on US, what's the typical out-of-stock rate and
 > seller count on listings with BSR under 25,000?
@@ -180,24 +195,49 @@ category is saturated.
 
 - **Tokens are Keepa's currency, and Agellic Lite is free.** You pay
   only Keepa, on your own subscription. Base Keepa refills 1 token per
-  minute, so long runs will queue as background jobs when the bucket
-  runs low. That's normal at 1 TPM, not a fault: Claude polls the queue
-  automatically with `check_job_status`, and it drains as tokens refill.
-  Run `check_token_balance` any time to see what you have.
-- **Background jobs run on your machine, not the cloud.** A queued
-  product-details batch or code resolution drains as tokens refill, but
-  only while a Claude app stays open. Quit Claude (or let the machine
-  sleep) and the job pauses; relaunch and it resumes where it left off,
-  nothing lost. Kick off the big one, leave Claude running, come back to
-  results.
+  minute, so long runs become background **work orders** when the bucket
+  runs low. That's normal at 1 TPM, not a fault: Claude polls with
+  `check_job_status`, and the order funds itself as tokens refill. Run
+  `check_token_balance` any time to see what you have.
+- **Big work asks first.** Anything quoted above 60 minutes of refill
+  (on a base plan, roughly 60 tokens) stops and shows you a quote plus a
+  time bound instead of starting. Nothing is charged until you agree.
+  Expect this on a deep-dive of four or more uncached products, or a
+  code manifest over about twenty rows.
+- **Cost and time are two separate claims.** The cost is a flat
+  worst-case ceiling for your order. The time is a queue-aware bound,
+  "done within ~X of token refill", that is recomputed on every poll and
+  counts down. It assumes nothing else is spending your Keepa key, and
+  its wall-clock figure assumes a session open about 8 hours a day.
+- **Work orders run on your machine, not the cloud.** An accepted
+  product-details batch or code resolution advances as tokens refill,
+  but only while a connected app stays open. Quit Claude (or let the
+  machine sleep) and it pauses; relaunch and it resumes where it left
+  off, nothing lost. Kick off the big one, leave Claude running, come
+  back to results.
+- **You can read a long order before it finishes.** Ask for what has
+  settled so far and Claude pages it with `check_job_status`
+  `action: "fetch"`. You can also stop an order at any point with
+  `action: "cancel"`: it halts at the next dispatch boundary and keeps
+  everything already settled.
+- **Don't ask Claude to "retry" a running order.** There is no
+  deduplication, so a re-run pays Keepa for the same work twice. Poll the
+  order instead.
 - **The 24-hour cache is real.** Re-asking the same question later the
   same day is usually free, and the cache is shared across chats and
   both Claude apps, so a fresh conversation re-reads it for nothing.
 - **Stored results stay warm.** A finder result set or a code-resolution
   table is retrievable by id for 24 hours, so you can page back into it
   in a later message with `get_finder_result` / `get_codes_result`
-  without re-running (and re-paying for) the original query.
+  without re-running (and re-paying for) the original query. If the view
+  has expired, the order behind it is kept for 14 days and
+  `check_job_status` rebuilds the view for free.
 - **Claude won't auto-chain expensive steps.** A finder result won't
   silently roll into a large product-details batch. Claude waits for you
   to ask. Compound asks in a single turn ("find X and deep-dive the top
   10") work as expected.
+- **Triage before you enrich.** At 1 token per minute the cheap tools do
+  the sorting: a `perPage=100` finder round is 11 tokens and a chart is
+  1, against 16 quoted for a single enriched product. A discover, chart,
+  then deep-read pass on two survivors fits inside one hour's refill;
+  enriching four products blind does not.

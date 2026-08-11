@@ -5,6 +5,70 @@ All notable changes to Agellic Lite are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-08-11
+
+Every Keepa-calling tool call is now a durable work order. Work that
+used to wait invisibly (or fail) when tokens ran short now accepts,
+survives restarts, runs itself as tokens refill, and reports honest
+progress and an honest wait. Nothing expensive starts without your
+consent. Agellic Lite stays free and license-free: your Keepa key is
+still the only credential.
+
+### Added
+
+- **`confirm_work_order` joins the Lite roster.** Work quoted above
+  roughly one hour of token refill does not start. The call returns the
+  order id, a cost-only quote, a queue-aware ETA, and a one-time
+  confirm token; nothing is charged until you agree and the assistant
+  passes the token back. Confirming queues the order (authorised is not
+  started, and the status view tells you which is true).
+- **Mid-run row access.** `check_job_status` action `fetch` pages
+  through rows an order has already settled, mid-run or after it
+  finishes.
+
+### Changed
+
+- **Every call returns one of three answers.** The result right away
+  when the token balance covers the quote; a background acceptance when
+  it does not (the order then runs itself as tokens refill); or a quote
+  plus confirm token when the work is big enough to need consent. All
+  three name the order id and the result-set handle your next call can
+  reuse.
+- **Cost and time are two separate claims.** Acceptances state the flat
+  token cost on one line and the wait on another: a bound ("done within
+  ~X of token refill"), recomputed on every poll so it counts down as
+  the queue drains. The bound covers the work as currently quoted,
+  assumes no other work on your Keepa key, and its wall-clock figure
+  assumes a session open about 8 h/day (an always-open session finishes
+  about 3x sooner).
+- **`check_job_status` is the hub.** Modes list, status, cancel, and
+  fetch. Status separates `authorised:` (you agreed) from `started:`
+  (a Keepa request has actually been dispatched), and withholds the
+  ETA for orders that will not finish on refill alone. An order
+  awaiting consent shows its ETA conditionally, prefixed "If you
+  confirm now:".
+- **Charges settle at Keepa's own figure.** Quotes are worst-case
+  ceilings, and most orders settle under them. Mid-run, the charged
+  total can include tokens reserved for requests still in flight;
+  those release when the request settles.
+- **Cancel keeps what you paid for.** Cancelling a not-yet-started
+  order stops it outright at zero charge. Cancelling a running order
+  stops it at its next dispatch boundary, and everything settled so
+  far stays readable.
+
+### Removed
+
+- **The rate-limit-wait job queue.** Nothing queues invisibly anymore.
+  Anything big enough to wait is a work order you can see, poll, and
+  cancel, and it survives a session restart.
+
+### Upgrade notes
+
+- A Claude Code CLI install clears the local product cache on upgrade,
+  so previously cached products refetch once at their normal token
+  price. Claude Desktop (.mcpb) upgrades keep the cache.
+- Background work only advances while an Agellic Lite session is open.
+
 ## [1.8.0] - 2026-08-01
 
 Buy Box prices now include shipping. Every Buy Box number this server

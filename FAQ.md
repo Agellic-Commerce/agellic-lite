@@ -19,28 +19,48 @@ depth of data each tool needs:
 
 | Tool | Cost | What it pays for |
 |---|---|---|
-| `execute_keepa_finder` | 10 + 1 per 100 ASINs returned | discovery against Keepa's pre-aggregated finder index |
-| `resolve_codes` | ~1 token / returned candidate (≈1 per code typical) | identity-tier UPC/EAN/GTIN/ISBN to candidate-ASIN lookup |
-| `get_product_details` | ~8 tokens / ASIN (9 reserved, unused graph token refunded) | full product record (offers, history, dimensions, calibrated demand) |
+| `execute_keepa_finder` | 10 + 1 per started 100 ASINs returned | discovery against Keepa's pre-aggregated finder index |
+| `resolve_codes` | quoted `unique codes × 3`, settling at ~1 per returned candidate | identity-tier UPC/EAN/GTIN/ISBN to candidate-ASIN lookup |
+| `get_product_details` | 16 tokens / ASIN quoted, settling at ~6-8 | full product record (offers, history, dimensions, calibrated demand) |
 | `get_product_chart` | 1 token / chart | rendered PNG from Keepa |
 
-`check_token_balance`, `check_job_status`, and the `get_*_result`
-readers are local: they cost nothing.
+`check_token_balance`, `check_job_status`, `confirm_work_order`, and the
+`get_*_result` readers are local: they cost nothing.
+
+### Why is the quote bigger than the charge?
+
+Because a quote is a ceiling, not a price. Agellic Lite authorises the
+worst case a call could cost, then settles at whatever Keepa actually
+bills. A deep-dive order quoted at 16 tokens per product typically
+settles at 6 to 8. Read the quote as the most you are agreeing to spend,
+and the figure on the finished order as the cost.
+
+One follow-on: while requests are in flight, the "charged" total on a
+running order includes tokens reserved for requests that have not come
+back yet. Those release when they settle, so the number can go *down*
+mid-run. The total on a finished order is the real one.
 
 ### What happens when I run out of tokens?
 
-Nothing is lost. The server enqueues a background job and returns a
-`jobId`. Poll it with `check_job_status`. The token bucket refills at
-`AGELLIC_LITE_TOKENS_PER_MINUTE` per minute (base Keepa is 1 TPM, which
-Agellic Lite auto-detects on first use). Once the bucket has enough
-capacity to cover the job, it runs. Until then the job stays `pending`:
-no work lost, no retry needed on your end.
+Nothing is lost, and nothing fails. The call is accepted as a durable
+**work order** and returns an `orderId` (`wo_...`) plus two separate
+figures: a flat cost, and a queue-aware ETA bound that counts down every
+time you poll. Poll it with `check_job_status`. The token bucket refills
+at `AGELLIC_LITE_TOKENS_PER_MINUTE` per minute (base Keepa is 1 TPM,
+which Agellic Lite auto-detects at startup), and the order funds itself
+batch by batch as tokens arrive. You never need to re-issue the request,
+and re-issuing it would pay Keepa twice.
+
+If the work needs more than an hour of refill (on a base plan, roughly
+60 tokens) it does not start at all: you get a quote and a
+`confirmToken` first, and nothing is charged until you agree.
 
 At 1 TPM the bucket holds 60 tokens and refills 1 per minute, so most
-real batches are larger than a single bucket. That is expected. The
-queue is the normal way Agellic Lite works, not a fallback: it drains
-your backlog automatically as Keepa tokens refill. Kick off the big
-lookup, leave Claude running, and come back to results.
+real batches are larger than a single bucket. That is expected.
+Background execution is the normal way Agellic Lite works, not a
+fallback. Kick off the big lookup, leave Claude running, and come back
+to results, or read what has settled so far at any point with
+`check_job_status` `action: "fetch"`.
 
 ### Do tokens carry over month-to-month?
 
@@ -52,7 +72,7 @@ Keepa account dashboard at [keepa.com/#!api](https://keepa.com/#!api).
 Ask Claude to run `check_token_balance`. It's a free local read:
 no Keepa call, no cost.
 
-## Caching & background jobs
+## Caching & work orders
 
 ### If I look up the same product twice, do I pay twice?
 
@@ -64,16 +84,29 @@ reopen a stored finder or code-resolution result by id long after the
 original chat scrolled away: see `get_finder_result` /
 `get_codes_result` in [TOOLS.md](./TOOLS.md).
 
-### Do background jobs keep running if I close Claude?
+### Does background work keep running if I close Claude?
 
-Only while a Claude app is open. The job runner lives inside the MCP
+Only while a Claude app is open. The scheduler lives inside the MCP
 server process, which Claude Desktop and Claude Code start and stop with
-the app: there's no cloud worker. Jobs are durable, though: quitting
-Claude (or restarting your machine) **pauses** the queue, and the next
-time you launch Claude the job resumes from where it left off: nothing
-is lost. So for a big product-details batch or a large code-resolution
-run, kick it off and leave Claude running; it drains as your Keepa
-tokens refill.
+the app: there's no cloud worker. Work orders are durable, though:
+quitting Claude (or restarting your machine) **pauses** them, and the
+next time you launch Claude the order resumes from where it left off,
+nothing lost. So for a big product-details batch or a large
+code-resolution run, kick it off and leave Claude running; it funds
+itself as your Keepa tokens refill.
+
+This is also why an order's wall-clock estimate assumes a session open
+about 8 hours a day. Leave the app open all day and it finishes roughly
+three times sooner than that figure.
+
+### Can I stop a run once it has started, or read it before it finishes?
+
+Both. `check_job_status` `action: "cancel"` stops an order: one that
+hasn't started stops instantly, and a running one stops at its next
+dispatch boundary. Either way everything it already settled stays
+readable, and you keep it. `action: "fetch"` pages through those settled
+rows at any time, mid-run or after, so a long order is useful before it
+completes.
 
 ## Prices
 
@@ -114,8 +147,8 @@ When shipping is greater than zero, `pricing.buyBox.itemCents` and
 Yes. Agellic Lite is a free, public edition of the Agellic MCP server.
 You bring your own Keepa API key and pay only Keepa, on whatever
 Keepa subscription you already have. The base Keepa tier (1 TPM) is
-enough to get started; larger token allowances just drain the queue
-faster.
+enough to get started; larger token allowances just fund your work
+orders faster.
 
 ### Is this finished software?
 
