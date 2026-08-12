@@ -5,6 +5,34 @@ All notable changes to Agellic Lite are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.1] - 2026-08-12
+
+Data-honesty patch release: fixes shared with our web pipeline so a
+"no data" marker can never read as a real number, plus removal of a
+documented field that never actually appeared. No new tools and no
+cache format change.
+
+### Fixed
+
+- **Sales-rank drop counts no longer show Keepa's "no data" marker as a
+  number.** When Keepa has no drop data it reports -1; that could surface
+  as a literal negative drops count. It now reads as null (no data).
+- **Offer price history excludes both of Keepa's no-value markers.** An
+  "absent value" (-2) tick could previously enter price history as a
+  negative price and skew the price-compression read toward a false
+  "compressed" signal. Neither marker is ever treated as a price now.
+- **Price-position now shows its measurement basis.** The output names
+  which price lane (buy-box vs lowest-new) and which shipping convention
+  the percentile and z-score were measured on. The fields were always
+  computed but were dropped from the rendered output.
+
+### Removed
+
+- **"Rank volatility" no longer appears in docs or tool descriptions.**
+  It was documented but never actually emitted (dead code since it
+  shipped), so nothing you relied on changes. Buy Box volatility, a
+  different and live insight, is unchanged.
+
 ## [2.0.0] - 2026-08-11
 
 Every Keepa-calling tool call is now a durable work order. Work that

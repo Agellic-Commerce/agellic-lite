@@ -1,7 +1,7 @@
 # Tool Reference
 
 This document is the practitioner reference for the 9 MCP tools exposed by
-Agellic Lite v2.0.0, the free, bring-your-own-Keepa-key edition of the
+Agellic Lite v2.0.1, the free, bring-your-own-Keepa-key edition of the
 Agellic MCP server. Each section covers what the tool does, what it costs
 in Keepa tokens, what inputs it accepts, what it returns, and the operating
 rules worth knowing before you turn it loose on a candidate set. All Keepa
@@ -332,7 +332,7 @@ explicit user acceptance.
 ## `get_product_details`
 
 Deep product analysis: offers, Buy Box rotation, stock depth, calibrated
-demand range, sales rank history, trend analysis, rank volatility,
+demand range, sales rank history, trend analysis,
 review velocity, insights, and economics. Also resolves a single
 UPC/EAN/ISBN code to ASINs on one specified marketplace.
 
@@ -396,7 +396,7 @@ Per resolved ASIN:
 - **`identity`**: title, brand, category, manufacturer, `productCodes`
   (UPC/EAN/GTIN), Amazon URL, image URL.
 - **`pricing`**: current lowest new price, list price, Buy Box price,
-  30/90/180d averages, trend direction/strength, volatility score, and
+  30/90/180d averages, trend direction/strength, and
   the **sell-price read** (`pricing.sellPrice`): observed sale-price
   bands (`moveFastCents` / `marketCents` / `stretchCents` = p25 / median
   / p75 of prices in force at inferred sale moments), the current
@@ -438,7 +438,7 @@ Per resolved ASIN:
 - **`reviews`**: rating, review count, velocity (added 30/90/180d),
   trend (accelerating/steady/slowing), historical avg.
 - **`supply`**: Amazon OOS 30/90/180d, marketplace OOS 90d.
-- **`insights`**: rank volatility, trend signals, Buy Box volatility,
+- **`insights`**: trend signals, Buy Box volatility,
   effective competition (sellers within 5% of BB), IP risk,
   race-to-bottom warning. See
   [`COMPUTED-INSIGHTS.md`](COMPUTED-INSIGHTS.md) for the algorithms
